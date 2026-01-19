@@ -219,17 +219,32 @@ export default function CheckoutPage() {
         quantity: 1
       }))
       
+      // Prepara payload base
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        cpf: formData.cpf.replace(/\D/g, ''),
+        paymentMethod: paymentMethod,
+        orderBumps: selectedBumpProducts,
+      }
+      
+      // Se for cartão, adiciona dados do cartão
+      if (paymentMethod === 'credit') {
+        payload.cardData = {
+          number: cardData.number.replace(/\s/g, ''),
+          holderName: cardData.holderName,
+          expMonth: cardData.expMonth,
+          expYear: cardData.expYear,
+          cvv: cardData.cvv,
+          installments: cardData.installments,
+        }
+      }
+      
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          cpf: formData.cpf.replace(/\D/g, ''),
-          paymentMethod: paymentMethod,
-          orderBumps: selectedBumpProducts, // Envia os IDs dos produtos
-        })
+        body: JSON.stringify(payload)
       })
 
       const result = await response.json()

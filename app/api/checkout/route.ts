@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepara dados para Appmax
-    const orderData = {
+    const orderData: any = {
       customer: {
         name: body.name,
         email: body.email,
@@ -56,6 +56,18 @@ export async function POST(request: NextRequest) {
       payment_method: body.paymentMethod || 'pix',
       order_bumps: body.orderBumps || [], // camelCase do frontend
       utm_params: body.utm_params || {},
+    }
+    
+    // Se for cartão de crédito, adiciona dados do cartão
+    if (body.paymentMethod === 'credit' && body.cardData) {
+      orderData.card_data = {
+        number: body.cardData.number,
+        holder_name: body.cardData.holderName,
+        exp_month: body.cardData.expMonth,
+        exp_year: body.cardData.expYear,
+        cvv: body.cardData.cvv,
+        installments: body.cardData.installments || 1,
+      }
     }
 
     console.log('📡 Enviando para Appmax...')
