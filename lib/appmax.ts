@@ -84,6 +84,7 @@ export interface AppmaxOrderResponse {
   payment_url?: string
   pix_qr_code?: string
   pix_qr_code_base64?: string
+  pix_emv?: string // Código Copia e Cola do PIX
   boleto_url?: string
   message?: string
 }
@@ -315,8 +316,21 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
     }
 
     if (!paymentResponse.ok) {
-      const error = await paymentResponse.json()
-      throw new Error(error.message || 'Erro ao processar pagamento na Appmax')
+      const errorText = await paymentResponse.text()
+      console.error('❌ Erro na resposta de pagamento:', {
+        status: paymentResponse.status,
+        statusText: paymentResponse.statusText,
+        body: errorText
+      })
+      
+      let error
+      try {
+        error = JSON.parse(errorText)
+      } catch {
+        error = { message: errorText }
+      }
+      
+      throw new Error(`Erro ao processar pagamento (${paymentResponse.status}): ${error.message || errorText}`)
     }
 
     const paymentResult = await paymentResponse.json()
@@ -326,6 +340,18 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
     console.log('='.repeat(80))
     console.log(JSON.stringify(paymentResult, null, 2))
     console.log('='.repeat(80))
+    
+    // Verifica se a resposta indica sucesso
+    const isSuccess = paymentResult.success !== false && 
+                     (paymentResult.status === 'success' || 
+                      paymentResult.data?.status === 'success' ||
+                      !paymentResult.status)
+    
+    if (!isSuccess) {
+      const errorMsg = paymentResult.message || paymentResult.error || 'Erro desconhecido no pagamento'
+      console.error('❌ Pagamento não foi bem-sucedido:', errorMsg)
+      throw new Error(errorMsg)
+    }
     
     // A API Appmax retorna um link "pix_payment_link" para a página de pagamento
     // Exemplo: http://admin.appmax.com.br/show-pix/105547443
@@ -340,14 +366,17 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
     
     if (!redirectUrl) {
       console.error('⚠️ NENHUMA URL retornada pela API!')
+      console.error('📦 Resposta completa:', JSON.stringify(paymentResult, null, 2))
     }
     
     // Também captura o QR Code se vier (improvável)
     const pixQrCode = paymentResult.pix_qrcode || 
                       paymentResult.pix_qr_code || 
-                      paymentResult.data?.pix_qrcode ||
-                      paymentResult.data?.pix_emv ||
-                      paymentResult.pix_emv
+                      paymentResult.data?.pix_qrcode
+    
+    // Captura o código Copia e Cola (EMV)
+    const pixEmv = paymentResult.pix_emv ||
+                   paymentResult.data?.pix_emv
     
     return {
       success: true,
@@ -355,6 +384,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
       status: 'pending',
       redirect_url: redirectUrl, // URL para redirecionar o usuário
       pix_qr_code: pixQrCode,    // QR Code caso venha diretamente
+      pix_emv: pixEmv,           // Código Copia e Cola
       pix_qr_code_base64: paymentResult.pix_qr_code_base64 || paymentResult.data?.pix_qrcode,
     }
   } catch (error: any) {

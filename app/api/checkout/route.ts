@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
       email: body.email,
       phone: body.phone,
       cpf: body.cpf,
-      payment_method: body.payment_method,
-      order_bumps: body.order_bumps,
+      paymentMethod: body.paymentMethod,
+      orderBumps: body.orderBumps,
     })
 
     // Valida dados obrigatórios
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
       },
       product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
       quantity: 1,
-      payment_method: body.payment_method || 'pix',
-      order_bumps: body.order_bumps || [],
+      payment_method: body.paymentMethod || 'pix',
+      order_bumps: body.orderBumps || [], // camelCase do frontend
       utm_params: body.utm_params || {},
     }
 
@@ -69,6 +69,8 @@ export async function POST(request: NextRequest) {
       status: result.status,
       has_redirect_url: !!result.redirect_url,
       has_pix: !!result.pix_qr_code,
+      redirect_url: result.redirect_url,
+      pix_qr_code_length: result.pix_qr_code?.length || 0,
     })
 
     if (!result.success) {
@@ -81,6 +83,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Valida que temos os dados necessários
+    if (!result.redirect_url && !result.pix_qr_code) {
+      console.error('❌ Appmax não retornou dados de pagamento!')
+      console.error('📦 Result completo:', JSON.stringify(result, null, 2))
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Erro ao gerar dados de pagamento PIX',
+        },
+        { status: 500 }
+      )
+    }
+
     // Retorna dados do pedido (incluindo redirect_url para PIX)
     return NextResponse.json({
       success: true,
@@ -88,6 +103,7 @@ export async function POST(request: NextRequest) {
       status: result.status,
       redirect_url: result.redirect_url, // URL da página PIX Appmax
       pix_qr_code: result.pix_qr_code,
+      pix_emv: result.pix_emv, // Código Copia e Cola
       pix_qr_code_base64: result.pix_qr_code_base64,
       message: 'Pedido criado com sucesso!',
     })
