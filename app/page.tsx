@@ -311,15 +311,13 @@ export default function LandingPage() {
 
           <div className="hidden md:flex items-center gap-4">
             {/* Login button for existing customers */}
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Link
-                href="/login"
-                className="flex items-center gap-2 text-brand-600 hover:text-brand-700 font-semibold transition-colors text-sm lg:text-base group"
-              >
-                <LogIn className="w-4 h-4 lg:w-5 lg:h-5 group-hover:rotate-12 transition-transform" />
-                <span>Entrar</span>
-              </Link>
-            </motion.div>
+            <a
+              href="http://www.gravadormedico.com.br/"
+              className="flex items-center gap-2 text-brand-600 hover:text-brand-700 font-semibold transition-colors text-sm lg:text-base group"
+            >
+              <LogIn className="w-4 h-4 lg:w-5 lg:h-5 group-hover:rotate-12 transition-transform" />
+              <span>Entrar</span>
+            </a>
             
             {/* CTA button to checkout */}
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -408,14 +406,14 @@ export default function LandingPage() {
 
                   <div className="mt-8 space-y-3">
                     {/* Login */}
-                    <Link
-                      href="/login"
+                    <a
+                      href="http://www.gravadormedico.com.br/"
                       onClick={() => setMobileMenuOpen(false)}
                       className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-brand-500 text-brand-600 rounded-full font-bold hover:bg-brand-50 transition-all"
                     >
                       <LogIn className="w-5 h-5" />
                       Entrar
-                    </Link>
+                    </a>
 
                     {/* CTA */}
                     <a
@@ -769,9 +767,7 @@ export default function LandingPage() {
                       {[
                         'Método completo de transcrição automática',
                         'Configuração do Atalho Mágico no iPhone',
-                        'Técnica de Gravação Discreta durante consultas',
                         'Prompt IA personalizado para prontuários',
-                        'Casos práticos reais de especialidades médicas',
                         '4 Bônus Exclusivos para Potencializar seu Método',
                         'Acesso vitalício com atualizações gratuitas',
                         'Garantia incondicional de 7 dias'

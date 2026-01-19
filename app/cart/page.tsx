@@ -156,7 +156,7 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
                     {[
                       "Acesso Imediato",
                       "4 Bônus Inclusos",
@@ -164,7 +164,7 @@ export default function CartPage() {
                       "Suporte 30 Dias",
                     ].map((item, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                        <Check className="w-4 h-4 text-brand-600" />
+                        <Check className="w-4 h-4 text-brand-600 flex-shrink-0" />
                         <span>{item}</span>
                       </div>
                     ))}
@@ -260,7 +260,7 @@ export default function CartPage() {
                           </p>
 
                           {/* Features */}
-                          <div className="grid grid-cols-2 gap-2 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                             {bump.features.map((feature, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
                                 <Check className="w-3 h-3 text-brand-600 flex-shrink-0" />
