@@ -15,6 +15,21 @@ const APPMAX_API_URL = 'https://admin.appmax.com.br/api/v3'
 const APPMAX_API_TOKEN = process.env.APPMAX_API_TOKEN || ''
 const APPMAX_PRODUCT_ID = process.env.APPMAX_PRODUCT_ID || '32991339'
 
+// Order Bumps IDs
+const BUMP_IDS = {
+  CONSULTORIA: process.env.APPMAX_ORDER_BUMP_1_ID || '32989468', // R$ 147
+  BIBLIOTECA: process.env.APPMAX_ORDER_BUMP_2_ID || '32989503',  // R$ 97
+  SUPORTE: process.env.APPMAX_ORDER_BUMP_3_ID || '32989520',     // R$ 197
+}
+
+// Preços dos produtos (para cálculo do total)
+const PRICES = {
+  MAIN: 36.00,
+  [BUMP_IDS.CONSULTORIA]: 147.00,
+  [BUMP_IDS.BIBLIOTECA]: 97.00,
+  [BUMP_IDS.SUPORTE]: 197.00,
+}
+
 interface UTMParams {
   utm_source?: string
   utm_medium?: string
@@ -155,7 +170,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
 
     // ETAPA 2: Criar Pedido
     // Calcula o total do carrinho
-    let cartTotal = 36.00 // Produto principal
+    let cartTotal = PRICES.MAIN // Produto principal
 
     const products = [
       {
@@ -168,35 +183,49 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
 
     // Adiciona order bumps
     if (data.order_bumps && data.order_bumps.length > 0) {
+      console.log('🎁 Processando order bumps:', data.order_bumps)
+      
       for (const bump of data.order_bumps) {
-        const bumpPrice = bump.product_id === '32989468' ? 147.00 : 97.00
+        const bumpPrice = PRICES[bump.product_id as keyof typeof PRICES] || 0
+        
+        if (bumpPrice === 0) {
+          console.warn(`⚠️ Preço não encontrado para bump ${bump.product_id}`)
+        }
+        
         cartTotal += bumpPrice
         
         products.push({
           sku: bump.product_id,
           name: `Order Bump ${bump.product_id}`,
-          qty: bump.quantity,
+          qty: bump.quantity || 1,
           digital_product: 1, // INFOPRODUTO
         })
+        
+        console.log(`✅ Bump adicionado: ${bump.product_id} - R$ ${bumpPrice}`)
       }
     }
 
-    console.log('📦 Criando pedido com total:', cartTotal)
+    console.log('📦 Criando pedido com', products.length, 'produtos. Total: R$', cartTotal)
+    console.log('📦 Produtos:', JSON.stringify(products, null, 2))
+
+    const orderPayload = {
+      'access-token': APPMAX_API_TOKEN,
+      total: cartTotal,
+      products,
+      customer_id: customerId,
+      shipping: 0,
+      discount: 0,
+      freight_type: 'Sedex',
+    }
+    
+    console.log('📤 Payload do pedido:', JSON.stringify(orderPayload, null, 2))
 
     const orderResponse = await fetch(`${APPMAX_API_URL}/order`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        'access-token': APPMAX_API_TOKEN,
-        total: cartTotal, // Envia total do carrinho (API calcula preço unitário)
-        products,
-        customer_id: customerId,
-        shipping: 0, // Produto digital - sem frete
-        discount: 0,
-        freight_type: 'Sedex', // Requerido mesmo para produto digital
-      }),
+      body: JSON.stringify(orderPayload),
     })
 
     const orderResponseText = await orderResponse.text()
@@ -292,15 +321,27 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
 
     const paymentResult = await paymentResponse.json()
     
-    console.log('📥 Resposta pagamento completa:', JSON.stringify(paymentResult, null, 2))
+    console.log('='.repeat(80))
+    console.log('📥 RESPOSTA PAGAMENTO PIX APPMAX:')
+    console.log('='.repeat(80))
+    console.log(JSON.stringify(paymentResult, null, 2))
+    console.log('='.repeat(80))
     
     // A API Appmax retorna uma URL de redirecionamento para a página de pagamento PIX
     // Exemplo: https://pay.appmax.com.br/pix/[hash]
-    const redirectUrl = paymentResult.redirect_url || 
-                        paymentResult.data?.redirect_url ||
-                        paymentResult.url ||
-                        paymentResult.data?.url ||
-                        paymentResult.payment_url
+    let redirectUrl = paymentResult.redirect_url || 
+                      paymentResult.data?.redirect_url ||
+                      paymentResult.url ||
+                      paymentResult.data?.url ||
+                      paymentResult.payment_url ||
+                      paymentResult.data?.payment_url
+    
+    // Se não retornou URL, constrói manualmente baseado no order_id
+    // Formato padrão Appmax: https://pay.appmax.com.br/purchase/[order_id]
+    if (!redirectUrl) {
+      redirectUrl = `https://pay.appmax.com.br/purchase/${orderId}`
+      console.log('⚠️ URL não retornada, construindo manualmente:', redirectUrl)
+    }
     
     // Também pode retornar o QR Code diretamente (menos provável)
     const pixQrCode = paymentResult.pix_qrcode || 
