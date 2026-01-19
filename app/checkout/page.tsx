@@ -231,20 +231,30 @@ export default function CheckoutPage() {
 
       // Processa resposta da API
       if (result.success) {
-        if (paymentMethod === 'pix' && result.pix_qr_code) {
-          // Salva QR Code no sessionStorage (evita URL muito longa)
-          sessionStorage.setItem('pix_qr_code', result.pix_qr_code)
-          sessionStorage.setItem('pix_order_id', result.order_id)
-          // Redireciona para página de sucesso
-          window.location.href = `/success/pix?order_id=${result.order_id}`
+        if (paymentMethod === 'pix') {
+          // Se a API retornou uma URL de redirecionamento (comportamento padrão Appmax)
+          // redireciona diretamente para a página de pagamento PIX da Appmax
+          if (result.redirect_url) {
+            console.log('🔗 Redirecionando para página PIX Appmax:', result.redirect_url)
+            window.location.href = result.redirect_url
+            return
+          }
+          
+          // Fallback: se retornou o QR Code diretamente (menos comum)
+          if (result.pix_qr_code) {
+            sessionStorage.setItem('pix_qr_code', result.pix_qr_code)
+            sessionStorage.setItem('pix_order_id', result.order_id)
+            window.location.href = `/success/pix?order_id=${result.order_id}`
+            return
+          }
+          
+          // Se não retornou nem URL nem QR Code, erro
+          throw new Error('API não retornou URL de pagamento PIX')
         } else if (paymentMethod === 'credit') {
           // Mostra resultado do cartão
           window.location.href = `/success/credit?order_id=${result.order_id}&status=${result.status}`
-        } else if (result.redirectUrl) {
-          // Fallback: redireciona para Appmax
-          window.location.href = result.redirectUrl
         } else {
-          throw new Error('Resposta inválida da API')
+          throw new Error('Método de pagamento inválido')
         }
       }
     } catch (error: any) {

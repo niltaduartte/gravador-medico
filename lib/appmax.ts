@@ -65,6 +65,7 @@ export interface AppmaxOrderResponse {
   success: boolean
   order_id: string
   status: 'pending' | 'approved' | 'rejected'
+  redirect_url?: string // URL para página de pagamento Appmax (PIX)
   payment_url?: string
   pix_qr_code?: string
   pix_qr_code_base64?: string
@@ -291,19 +292,29 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
 
     const paymentResult = await paymentResponse.json()
     
-    console.log('📥 Resposta pagamento:', JSON.stringify(paymentResult).substring(0, 500))
+    console.log('📥 Resposta pagamento completa:', JSON.stringify(paymentResult, null, 2))
     
-    // A API Appmax retorna: pix_qrcode, pix_emv, etc
+    // A API Appmax retorna uma URL de redirecionamento para a página de pagamento PIX
+    // Exemplo: https://pay.appmax.com.br/pix/[hash]
+    const redirectUrl = paymentResult.redirect_url || 
+                        paymentResult.data?.redirect_url ||
+                        paymentResult.url ||
+                        paymentResult.data?.url ||
+                        paymentResult.payment_url
+    
+    // Também pode retornar o QR Code diretamente (menos provável)
     const pixQrCode = paymentResult.pix_qrcode || 
                       paymentResult.pix_qr_code || 
                       paymentResult.data?.pix_qrcode ||
-                      paymentResult.data?.pix_emv
+                      paymentResult.data?.pix_emv ||
+                      paymentResult.pix_emv
     
     return {
       success: true,
       order_id: orderId.toString(),
       status: 'pending',
-      pix_qr_code: pixQrCode,
+      redirect_url: redirectUrl, // URL para redirecionar o usuário
+      pix_qr_code: pixQrCode,    // QR Code caso venha diretamente
       pix_qr_code_base64: paymentResult.pix_qr_code_base64 || paymentResult.data?.pix_qrcode,
     }
   } catch (error: any) {
