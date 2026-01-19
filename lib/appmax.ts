@@ -13,7 +13,7 @@
 // Configuração da Appmax - ENDPOINT OFICIAL V3
 const APPMAX_API_URL = 'https://admin.appmax.com.br/api/v3'
 const APPMAX_API_TOKEN = process.env.APPMAX_API_TOKEN || ''
-const APPMAX_PRODUCT_ID = process.env.APPMAX_PRODUCT_ID || '32880073'
+const APPMAX_PRODUCT_ID = process.env.APPMAX_PRODUCT_ID || '32991339'
 
 interface UTMParams {
   utm_source?: string
@@ -326,7 +326,7 @@ export async function validateAppmaxAccess(email: string): Promise<boolean> {
  * Gera o link de checkout da APPMAX (fallback)
  */
 export function generateCheckoutLink(utmParams?: UTMParams): string {
-  const baseUrl = 'https://gravadormedico.carrinho.app/one-checkout/ocudf/32880073'
+  const baseUrl = 'https://gravadormedico1768482029857.carrinho.app/one-checkout/ocmdf/32991339'
   
   if (!utmParams) {
     return baseUrl

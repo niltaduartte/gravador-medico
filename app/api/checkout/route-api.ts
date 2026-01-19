@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           state: body.address.state,
         } : undefined,
       },
-      product_id: process.env.APPMAX_PRODUCT_ID || '32880073',
+      product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
       quantity: 1,
       order_bumps: orderBumps,
       payment_method: body.paymentMethod === 'pix' ? 'pix' : 'credit_card',

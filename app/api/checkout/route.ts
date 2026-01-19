@@ -7,9 +7,9 @@ import { NextRequest, NextResponse } from "next/server"
  * hospedado da Appmax com os dados pré-preenchidos via query params
  */
 
-const APPMAX_CHECKOUT_BASE = "https://gravadormedico1768482029857.carrinho.app/one-checkout/ocudf"
+const APPMAX_CHECKOUT_BASE = "https://gravadormedico1768482029857.carrinho.app/one-checkout/ocmdf"
 const PRODUCT_IDS = {
-  main: process.env.APPMAX_PRODUCT_ID || '32880073',
+  main: process.env.APPMAX_PRODUCT_ID || '32991339',
   bump1: process.env.APPMAX_ORDER_BUMP_1_ID || '32989468',
   bump2: process.env.APPMAX_ORDER_BUMP_2_ID || '32989503',
   bump3: process.env.APPMAX_ORDER_BUMP_3_ID || '32989520',
