@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       },
       product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
       quantity: 1,
-      payment_method: body.paymentMethod || 'pix',
+      payment_method: body.paymentMethod === 'credit' ? 'credit_card' : body.paymentMethod || 'pix',
       order_bumps: body.orderBumps || [], // camelCase do frontend
       utm_params: body.utm_params || {},
     }
