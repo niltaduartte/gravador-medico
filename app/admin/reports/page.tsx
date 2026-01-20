@@ -97,13 +97,14 @@ export default function ReportsPage() {
 
       console.log('✅ Total de vendas no período:', sales?.length || 0)
       console.log('📦 Exemplo de venda:', sales?.[0])
+      console.log('📦 Status das vendas:', sales?.map(s => s.status))
 
-      // Filtrar apenas aprovadas E pagas
+      // Filtrar apenas aprovadas (paid já é mapeado para approved no webhook)
       const approvedSales = sales?.filter((s) => 
-        s.status === 'approved' || s.status === 'paid'
+        s.status === 'approved'
       ) || []
 
-      console.log('✅ Vendas aprovadas/pagas:', approvedSales.length)
+      console.log('✅ Vendas aprovadas:', approvedSales.length)
 
       // Calcular métricas
       const totalRevenue = approvedSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0)

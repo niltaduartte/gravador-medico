@@ -68,26 +68,47 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [period, setPeriod] = useState(7) // 7, 14 ou 30 dias
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
+
+  // Função para definir período rápido
+  const setQuickPeriod = (days: number) => {
+    setFilterType('quick')
+    setPeriod(days)
+    const end = new Date()
+    const start = days === 0 ? startOfDay(end) : subDays(end, days) // 0 = hoje
+    setStartDate(format(start, 'yyyy-MM-dd'))
+    setEndDate(format(end, 'yyyy-MM-dd'))
+  }
 
   useEffect(() => {
-    loadDashboardData()
-  }, [period])
+    // Inicializar com últimos 7 dias
+    setQuickPeriod(7)
+  }, [])
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      loadDashboardData()
+    }
+  }, [startDate, endDate])
 
   const loadDashboardData = async () => {
     try {
       setRefreshing(true)
       
-      // Calcular datas
-      const endDate = endOfDay(new Date())
-      const startDate = startOfDay(subDays(endDate, period))
-      const previousStartDate = startOfDay(subDays(startDate, period))
+      // Calcular datas baseadas nos filtros
+      const endDateObj = endOfDay(new Date(endDate))
+      const startDateObj = startOfDay(new Date(startDate))
+      const periodDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24))
+      const previousStartDate = startOfDay(subDays(startDateObj, periodDays))
       
       // 1. Buscar vendas do período atual
       const { data: currentSales, error: currentError} = await supabase
         .from('sales')
         .select('*')
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .gte('created_at', startDateObj.toISOString())
+        .lte('created_at', endDateObj.toISOString())
         .order('created_at', { ascending: false })
 
       if (currentError) {
@@ -102,7 +123,7 @@ export default function AdminDashboard() {
         .from('sales')
         .select('*')
         .gte('created_at', previousStartDate.toISOString())
-        .lt('created_at', startDate.toISOString())
+        .lt('created_at', startDateObj.toISOString())
 
       // 3. Calcular métricas do período atual
       const approvedSales = (currentSales || []).filter(s => s.status === 'approved')
@@ -252,14 +273,24 @@ export default function AdminDashboard() {
           <p className="text-gray-400 mt-1">Acompanhe suas métricas em tempo real</p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          {/* Filtro de Período */}
+          {/* Filtros Rápidos */}
           <div className="flex gap-2 bg-gray-800 border border-gray-700 rounded-xl p-1">
+            <button
+              onClick={() => setQuickPeriod(0)}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                period === 0 && filterType === 'quick'
+                  ? 'bg-brand-500 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Hoje
+            </button>
             {[7, 14, 30].map((days) => (
               <button
                 key={days}
-                onClick={() => setPeriod(days)}
+                onClick={() => setQuickPeriod(days)}
                 className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                  period === days
+                  period === days && filterType === 'quick'
                     ? 'bg-brand-500 text-white shadow-lg'
                     : 'text-gray-400 hover:text-white'
                 }`}
@@ -267,6 +298,28 @@ export default function AdminDashboard() {
                 {days} dias
               </button>
             ))}
+          </div>
+
+          {/* Filtros Personalizados */}
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setFilterType('custom')
+                setStartDate(e.target.value)
+              }}
+              className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setFilterType('custom')
+                setEndDate(e.target.value)
+              }}
+              className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
           </div>
           
           <button

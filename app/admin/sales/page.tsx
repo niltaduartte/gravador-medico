@@ -16,7 +16,7 @@ import {
   X
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { format } from 'date-fns'
+import { format, subDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 interface Sale {
@@ -42,43 +42,69 @@ export default function SalesPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
+  const [period, setPeriod] = useState(30)
   
   // Estados para modal de detalhes
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
-  useEffect(() => {
-    loadSales()
-    
-    // 🔴 REALTIME: Escutar novas vendas
-    const channel = supabase
-      .channel('sales-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sales',
-        },
-        (payload) => {
-          console.log('🔔 Nova venda detectada:', payload)
-          loadSales() // Recarrega a lista automaticamente
-        }
-      )
-      .subscribe()
+  // Função para definir período rápido
+  const setQuickPeriod = (days: number) => {
+    setFilterType('quick')
+    setPeriod(days)
+    const end = new Date()
+    const start = days === 0 ? startOfDay(end) : subDays(end, days) // 0 = hoje
+    setStartDate(format(start, 'yyyy-MM-dd'))
+    setEndDate(format(end, 'yyyy-MM-dd'))
+  }
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+  useEffect(() => {
+    // Inicializar com últimos 30 dias
+    setQuickPeriod(30)
   }, [])
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      loadSales()
+      
+      // 🔴 REALTIME: Escutar novas vendas
+      const channel = supabase
+        .channel('sales-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'sales',
+          },
+          (payload) => {
+            console.log('🔔 Nova venda detectada:', payload)
+            loadSales() // Recarrega a lista automaticamente
+          }
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [startDate, endDate])
 
   const loadSales = async () => {
     try {
       setRefreshing(true)
       
+      const start = startOfDay(new Date(startDate))
+      const end = endOfDay(new Date(endDate))
+      
       const { data, error } = await supabase
         .from('sales')
         .select('*')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -170,12 +196,12 @@ export default function SalesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-black text-white">Vendas</h1>
           <p className="text-gray-400 mt-1">Gerencie todos os pedidos e transações</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             onClick={loadSales}
             disabled={refreshing}
@@ -188,6 +214,67 @@ export default function SalesPage() {
             <Download className="w-4 h-4" />
             Exportar
           </button>
+        </div>
+      </div>
+
+      {/* Filtros de Data */}
+      <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold text-gray-400 mb-2">Período Rápido</label>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setQuickPeriod(0)}
+                className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${
+                  period === 0 && filterType === 'quick'
+                    ? 'bg-brand-500 text-white shadow-lg'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                Hoje
+              </button>
+              {[7, 14, 30, 60, 90].map((days) => (
+                <button
+                  key={days}
+                  onClick={() => setQuickPeriod(days)}
+                  className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${
+                    period === days && filterType === 'quick'
+                      ? 'bg-brand-500 text-white shadow-lg'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {days} dias
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-400 mb-2">Personalizado - Início</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setFilterType('custom')
+                  setStartDate(e.target.value)
+                }}
+                className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-400 mb-2">Personalizado - Fim</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setFilterType('custom')
+                  setEndDate(e.target.value)
+                }}
+                className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
