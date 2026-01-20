@@ -438,7 +438,7 @@ export default function CheckoutPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           
           {/* Left Column - Forms */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 min-w-0">
             
             <AnimatePresence mode="wait">
               
@@ -449,7 +449,7 @@ export default function CheckoutPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="bg-white rounded-2xl md:rounded-3xl shadow-xl p-4 sm:p-6 md:p-8 border-2 border-brand-100"
+                  className="bg-white rounded-2xl md:rounded-3xl shadow-xl p-4 sm:p-6 md:p-8 border-2 border-brand-100 overflow-hidden"
                 >
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
@@ -461,7 +461,7 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-4 min-w-0">
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-2">
                         Nome Completo *
@@ -470,7 +470,7 @@ export default function CheckoutPage() {
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
+                        className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                         placeholder="Dr. João Silva"
                         required
                       />
@@ -484,14 +484,14 @@ export default function CheckoutPage() {
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
+                        className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                         placeholder="seu@email.com"
                         required
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                      <div className="min-w-0">
                         <label className="block text-sm font-bold text-gray-900 mb-2">
                           Telefone
                         </label>
@@ -499,13 +499,13 @@ export default function CheckoutPage() {
                           type="tel"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
+                          className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                           placeholder="(11) 99999-9999"
                           maxLength={15}
                         />
                       </div>
 
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-sm font-bold text-gray-900 mb-2">
                           CPF *
                         </label>
@@ -513,7 +513,7 @@ export default function CheckoutPage() {
                           type="text"
                           value={formData.cpf}
                           onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
+                          className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                           placeholder="000.000.000-00"
                           maxLength={14}
                           required
