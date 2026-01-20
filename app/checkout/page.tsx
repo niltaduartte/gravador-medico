@@ -512,7 +512,7 @@ export default function CheckoutPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           
           {/* Left Column - Forms */}
-          <div className="lg:col-span-2 space-y-6 min-w-0">
+          <div className="lg:col-span-2 space-y-6 min-w-0 order-2 lg:order-1">
             
             <AnimatePresence mode="wait">
               
@@ -953,7 +953,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Right Column - Resumo do Pedido */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 order-1 lg:order-2">
             <div className="sticky top-24">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
