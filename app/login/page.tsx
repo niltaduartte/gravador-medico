@@ -1,22 +1,44 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { LogIn, Mail, Lock, AlertCircle, Loader2 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { supabase } from "@/lib/supabase"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    window.location.href = "https://gravador-medico.lovable.app";
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError("")
+
+    try {
+      // Login com Supabase Auth
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (authError) throw authError
+
+      // Pegar o redirect da URL ou ir para dashboard
+      const redirect = searchParams.get('redirect') || '/admin/dashboard'
+      router.push(redirect)
+    } catch (err: any) {
+      console.error('Erro ao fazer login:', err)
+      setError(err.message || 'Email ou senha incorretos')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
