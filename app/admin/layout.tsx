@@ -1,11 +1,12 @@
 "use client"
 
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   LayoutDashboard, 
   ShoppingCart, 
   Users, 
+  User,
   Settings, 
   LogOut,
   Menu,
@@ -16,7 +17,9 @@ import {
   Search,
   ShieldAlert,
   TrendingUp,
-  ShoppingBag
+  ShoppingBag,
+  CheckCircle2,
+  Clock
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -27,11 +30,79 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const notificationsRef = useRef<HTMLDivElement>(null)
+  
+  // Contadores de notificações
+  const [notifications, setNotifications] = useState({
+    abandonedCarts: 0,
+    pendingOrders: 0,
+    approvedOrders: 0,
+  })
 
   // Verificar autenticação e role de admin
   useEffect(() => {
     checkAuth()
   }, [])
+
+  // Buscar todas as notificações
+  useEffect(() => {
+    if (isAdmin) {
+      loadNotifications()
+      // Atualiza a cada 30 segundos
+      const interval = setInterval(loadNotifications, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [isAdmin])
+
+  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false)
+      }
+    }
+
+    if (notificationsOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [notificationsOpen])
+
+  const loadNotifications = async () => {
+    try {
+      // Carrinhos abandonados
+      const { count: abandonedCount } = await supabase
+        .from('abandoned_carts')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'abandoned')
+      
+      // Pedidos pendentes (últimas 24h)
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      
+      const { count: pendingCount } = await supabase
+        .from('sales')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .gte('created_at', yesterday.toISOString())
+      
+      // Pedidos aprovados (últimas 24h)
+      const { count: approvedCount } = await supabase
+        .from('sales')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .gte('created_at', yesterday.toISOString())
+      
+      setNotifications({
+        abandonedCarts: abandonedCount || 0,
+        pendingOrders: pendingCount || 0,
+        approvedOrders: approvedCount || 0,
+      })
+    } catch (error) {
+      console.error('Erro ao buscar notificações:', error)
+    }
+  }
 
   const checkAuth = async () => {
     try {
@@ -200,8 +271,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex flex-col flex-grow bg-gradient-to-b from-gray-900 to-gray-800 overflow-y-auto shadow-2xl">
           {/* Logo */}
           <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-gray-700">
-            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center">
-              <LayoutDashboard className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+              <img 
+                src="/images/novo-icon-gravadormedico.png" 
+                alt="Gravador Médico" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="ml-3">
               <h1 className="text-xl font-black text-white">Admin Panel</h1>
@@ -240,7 +315,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* User Info */}
           <div className="flex-shrink-0 border-t border-gray-700 p-4">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <div 
+                onClick={() => router.push('/admin/profile')}
+                className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition"
+              >
                 <span className="text-white font-bold text-sm">
                   {userEmail?.charAt(0).toUpperCase()}
                 </span>
@@ -250,8 +328,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-xs text-gray-400">Administrador</p>
               </div>
               <button
+                onClick={() => router.push('/admin/profile')}
+                className="mr-1 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                title="Perfil"
+              >
+                <User className="w-5 h-5" />
+              </button>
+              <button
                 onClick={handleLogout}
-                className="ml-2 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
                 title="Sair"
               >
                 <LogOut className="w-5 h-5" />
@@ -276,8 +361,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-6 border-b border-gray-700">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center">
-                    <LayoutDashboard className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+                    <img 
+                      src="/images/novo-icon-gravadormedico.png" 
+                      alt="Gravador Médico"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="ml-3">
                     <h1 className="text-xl font-black text-white">Admin Panel</h1>
@@ -321,7 +410,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* User Info */}
               <div className="border-t border-gray-700 p-4">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <div 
+                    onClick={() => {
+                      router.push('/admin/profile')
+                      setSidebarOpen(false)
+                    }}
+                    className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition"
+                  >
                     <span className="text-white font-bold text-sm">
                       {userEmail?.charAt(0).toUpperCase()}
                     </span>
@@ -331,8 +426,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <p className="text-xs text-gray-400">Administrador</p>
                   </div>
                   <button
+                    onClick={() => {
+                      router.push('/admin/profile')
+                      setSidebarOpen(false)
+                    }}
+                    className="mr-1 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+                    title="Perfil"
+                  >
+                    <User className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={handleLogout}
-                    className="ml-2 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
                   >
                     <LogOut className="w-5 h-5" />
                   </button>
@@ -369,10 +474,108 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* Right Actions */}
             <div className="flex items-center gap-4 ml-auto">
-              <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg relative">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              {/* Notificações Dropdown */}
+              <div className="relative" ref={notificationsRef}>
+                <button 
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg relative"
+                >
+                  <Bell className="w-6 h-6" />
+                  {(notifications.abandonedCarts + notifications.pendingOrders + notifications.approvedOrders) > 0 && (
+                    <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
+                      {(notifications.abandonedCarts + notifications.pendingOrders + notifications.approvedOrders) > 9 ? '9+' : (notifications.abandonedCarts + notifications.pendingOrders + notifications.approvedOrders)}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown de Notificações */}
+                {notificationsOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-50">
+                    <div className="p-4 border-b border-gray-700">
+                      <h3 className="text-white font-semibold">Notificações</h3>
+                      <p className="text-xs text-gray-400 mt-1">Últimas 24 horas</p>
+                    </div>
+                    <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                      {/* Pedidos Aprovados */}
+                      {notifications.approvedOrders > 0 && (
+                        <div
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            router.push('/admin/sales')
+                          }}
+                          className="p-3 bg-green-900/20 border border-green-700 rounded-lg cursor-pointer hover:bg-green-900/30 transition"
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-white font-medium text-sm">
+                                {notifications.approvedOrders} {notifications.approvedOrders === 1 ? 'pedido aprovado' : 'pedidos aprovados'}
+                              </p>
+                              <p className="text-gray-400 text-xs mt-1">
+                                Vendas confirmadas hoje
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pedidos Pendentes */}
+                      {notifications.pendingOrders > 0 && (
+                        <div
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            router.push('/admin/sales')
+                          }}
+                          className="p-3 bg-blue-900/20 border border-blue-700 rounded-lg cursor-pointer hover:bg-blue-900/30 transition"
+                        >
+                          <div className="flex items-start gap-3">
+                            <Clock className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-white font-medium text-sm">
+                                {notifications.pendingOrders} {notifications.pendingOrders === 1 ? 'pedido pendente' : 'pedidos pendentes'}
+                              </p>
+                              <p className="text-gray-400 text-xs mt-1">
+                                Aguardando pagamento
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Carrinhos Abandonados */}
+                      {notifications.abandonedCarts > 0 && (
+                        <div
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            router.push('/admin/abandoned-carts')
+                          }}
+                          className="p-3 bg-amber-900/20 border border-amber-700 rounded-lg cursor-pointer hover:bg-amber-900/30 transition"
+                        >
+                          <div className="flex items-start gap-3">
+                            <ShoppingBag className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-white font-medium text-sm">
+                                {notifications.abandonedCarts} {notifications.abandonedCarts === 1 ? 'carrinho abandonado' : 'carrinhos abandonados'}
+                              </p>
+                              <p className="text-gray-400 text-xs mt-1">
+                                Clique para recuperar vendas
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sem notificações */}
+                      {notifications.abandonedCarts === 0 && notifications.pendingOrders === 0 && notifications.approvedOrders === 0 && (
+                        <div className="text-center py-8 text-gray-400">
+                          <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p className="text-sm">Nenhuma notificação</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
