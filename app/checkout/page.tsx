@@ -631,10 +631,8 @@ export default function CheckoutPage() {
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 mb-3 px-4">
             Complete seu Pedido
           </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto px-4">
-            Você está a um passo de economizar{' '}
-            <span className="text-brand-600 font-bold whitespace-nowrap">3 horas por dia</span>{' '}
-            com o Método Gravador Médico
+          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 max-w-2xl mx-auto px-4 leading-tight">
+            Economize <span className="text-brand-600 font-bold whitespace-nowrap">3h/dia</span> com o Método Gravador Médico
           </p>
         </motion.div>
 
@@ -1156,26 +1154,26 @@ export default function CheckoutPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white rounded-2xl md:rounded-3xl shadow-xl p-4 sm:p-6 border-2 border-brand-100"
               >
-                <h3 className="text-lg md:text-xl font-black text-gray-900 mb-4 md:mb-6">Resumo do Pedido</h3>
+                <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-4 md:mb-6">Resumo do Pedido</h3>
 
                 {/* Produto Principal */}
                 <div className="mb-4 md:mb-6 pb-4 md:pb-6 border-b-2 border-gray-100">
                   <div className="flex items-start gap-3 md:gap-4">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-14 h-14 md:w-20 md:h-20 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center flex-shrink-0">
                       <img 
                         src="/images/novo-icon-gravadormedico.png" 
                         alt="Gravador Médico" 
-                        className="w-8 h-8 md:w-10 md:h-10 object-contain"
+                        className="w-9 h-9 md:w-12 md:h-12 object-contain"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm md:text-base text-gray-900 mb-1">Método Gravador Médico</h4>
-                      <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+                      <h4 className="font-bold text-base md:text-lg text-gray-900 mb-1">Método Gravador Médico</h4>
+                      <p className="text-sm md:text-base text-gray-600 leading-relaxed">
                         Sistema Completo<br />+ 4 Bônus
                       </p>
                       <div className="mt-2 flex items-center gap-2">
-                        <div className="text-gray-400 line-through text-xs md:text-sm">R$ 938</div>
-                        <div className="text-xl md:text-2xl font-black text-brand-600">R$ {basePrice}</div>
+                        <div className="text-gray-400 line-through text-sm md:text-base">R$ 938</div>
+                        <div className="text-2xl md:text-3xl font-black text-brand-600">R$ {basePrice}</div>
                       </div>
                     </div>
                   </div>
@@ -1188,8 +1186,8 @@ export default function CheckoutPage() {
                       "Garantia de 7 Dias",
                       "Suporte por 30 Dias",
                     ].map((feature, index) => (
-                      <div key={index} className="flex items-center gap-2 text-xs md:text-sm">
-                        <CheckCircle2 className="w-3 h-3 md:w-4 md:h-4 text-brand-600 flex-shrink-0" />
+                      <div key={index} className="flex items-center gap-2 text-sm md:text-base">
+                        <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-brand-600 flex-shrink-0" />
                         <span className="text-gray-700">{feature}</span>
                       </div>
                     ))}
