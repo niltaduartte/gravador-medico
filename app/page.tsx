@@ -864,11 +864,7 @@ export default function LandingPage() {
           {/* Carousel/Slider Automático */}
           <div className="relative max-w-4xl mx-auto overflow-hidden py-4">
             <motion.div 
-              className="flex gap-4 cursor-grab active:cursor-grabbing"
-              drag="x"
-              dragConstraints={{ left: -2000, right: 0 }}
-              dragElastic={0.1}
-              whileTap={{ cursor: "grabbing" }}
+              className="flex gap-4"
               animate={{
                 x: [0, -1440],
               }}
@@ -876,7 +872,7 @@ export default function LandingPage() {
                 x: {
                   repeat: Infinity,
                   repeatType: "loop",
-                  duration: 5,
+                  duration: 12,
                   ease: "linear",
                 },
               }}
@@ -943,10 +939,10 @@ export default function LandingPage() {
                       </div>
                     </div>
 
-                    <h3 className="text-sm font-bold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors">
+                    <h3 className="text-base font-bold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors">
                       {item.title}
                     </h3>
-                    <p className="text-xs text-gray-600 leading-snug flex-1">
+                    <p className="text-sm text-gray-600 leading-snug flex-1">
                       {item.description}
                     </p>
                   </div>
