@@ -78,54 +78,61 @@ export default function AdminDashboard() {
     try {
       setRefreshing(true)
       
-      // Buscar métricas gerais
-      const { data: sales, error } = await supabase
+      // 1. Buscar métricas otimizadas da VIEW
+      const { data: metricsData, error: metricsError } = await supabase
+        .from('dashboard_metrics')
+        .select('*')
+        .single()
+
+      if (metricsError) {
+        console.error('Erro ao buscar métricas:', metricsError)
+      } else if (metricsData) {
+        // Calcular crescimentos (mock - você pode implementar comparação com período anterior)
+        const revenueGrowth = 12.5 // +12.5% vs período anterior
+        const ordersGrowth = 8.3 // +8.3% vs período anterior
+        const conversionRate = metricsData.pix_conversions 
+          ? (metricsData.pix_conversions / (metricsData.total_sales || 1)) * 100 
+          : 0
+
+        setMetrics({
+          totalRevenue: Number(metricsData.total_revenue) || 0,
+          totalOrders: metricsData.total_sales || 0,
+          totalCustomers: metricsData.total_sales || 0, // Aproximação
+          averageTicket: Number(metricsData.avg_ticket) || 0,
+          revenueGrowth,
+          ordersGrowth,
+          conversionRate,
+        })
+      }
+
+      // 2. Buscar vendas recentes (últimas 10)
+      const { data: sales, error: salesError } = await supabase
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false })
+        .limit(10)
 
-      if (error) throw error
+      if (salesError) {
+        console.error('Erro ao buscar vendas:', salesError)
+      } else {
+        setRecentSales(sales || [])
+      }
 
-      if (sales && sales.length > 0) {
-        // Calcular métricas
-        const approvedSales = sales.filter(s => s.status === 'approved')
-        const totalRevenue = approvedSales.reduce((sum, sale) => sum + Number(sale.total_amount), 0)
-        const totalOrders = approvedSales.length
-        const uniqueCustomers = new Set(sales.map(s => s.customer_email)).size
-        const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
+      // 3. Buscar dados do gráfico (últimos 7 dias) da VIEW
+      const { data: chartData, error: chartError } = await supabase
+        .from('sales_last_7_days')
+        .select('*')
+        .order('sale_date', { ascending: true })
 
-        // Vendas dos últimos 7 dias para o gráfico
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const date = new Date()
-          date.setDate(date.getDate() - (6 - i))
-          return date.toISOString().split('T')[0]
-        })
-
-        const chartData = last7Days.map(date => {
-          const daySales = approvedSales.filter(s => 
-            s.created_at?.startsWith(date)
-          )
-          const revenue = daySales.reduce((sum, sale) => sum + Number(sale.total_amount), 0)
-          
-          return {
-            date: format(new Date(date), 'dd/MM', { locale: ptBR }),
-            vendas: daySales.length,
-            receita: revenue,
-          }
-        })
-
-        setMetrics({
-          totalRevenue,
-          totalOrders,
-          totalCustomers: uniqueCustomers,
-          averageTicket,
-          revenueGrowth: 12.5, // Mock - calcular depois comparando com período anterior
-          ordersGrowth: 8.3,
-          conversionRate: 68.5,
-        })
-
-        setSalesChart(chartData)
-        setRecentSales(sales.slice(0, 10) as RecentSale[])
+      if (chartError) {
+        console.error('Erro ao buscar dados do gráfico:', chartError)
+      } else if (chartData) {
+        const formattedData = chartData.map((item: any) => ({
+          date: format(new Date(item.sale_date), 'dd/MM', { locale: ptBR }),
+          receita: Number(item.revenue) || 0,
+          vendas: item.sales_count || 0,
+        }))
+        setSalesChart(formattedData)
       }
 
       setLoading(false)
