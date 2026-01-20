@@ -14,7 +14,9 @@ import {
   Package,
   Bell,
   Search,
-  ShieldAlert
+  ShieldAlert,
+  TrendingUp,
+  ShoppingBag
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -93,6 +95,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       icon: Package, 
       label: 'Produtos', 
       href: '/admin/products',
+      badge: null
+    },
+    { 
+      icon: TrendingUp, 
+      label: 'Analytics', 
+      href: '/admin/analytics',
+      badge: null
+    },
+    { 
+      icon: ShoppingBag, 
+      label: 'Carrinhos Abandonados', 
+      href: '/admin/abandoned-carts',
       badge: null
     },
     { 
