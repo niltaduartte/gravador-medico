@@ -106,40 +106,49 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const checkAuth = async () => {
     try {
-      // Verificar se está logado no Supabase Auth
-      const { data: { user } } = await supabase.auth.getUser()
+      // Buscar token do localStorage
+      const token = localStorage.getItem('auth_token')
       
-      if (!user) {
+      if (!token) {
         router.push('/login?redirect=/admin/dashboard')
         return
       }
 
-      // Verificar se é admin
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
+      // Verificar token com a API
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
 
-      if (error || !profile || profile.role !== 'admin') {
+      if (!response.ok) {
+        localStorage.removeItem('auth_token')
+        router.push('/login?redirect=/admin/dashboard')
+        return
+      }
+
+      const data = await response.json()
+      
+      // Verificar se é admin
+      if (data.user.role !== 'admin') {
         console.error('❌ Acesso negado - Usuário não é admin')
-        // NÃO redirecionar, apenas mostrar mensagem de acesso negado
         setIsAdmin(false)
         setLoading(false)
         return
       }
 
       setIsAdmin(true)
-      setUserEmail(user.email || null)
+      setUserEmail(data.user.email || null)
       setLoading(false)
     } catch (error) {
       console.error('Erro ao verificar auth:', error)
+      localStorage.removeItem('auth_token')
       router.push('/login')
     }
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    localStorage.removeItem('auth_token')
     router.push('/')
   }
 
