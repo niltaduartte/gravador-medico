@@ -1385,7 +1385,7 @@ export default function LandingPage() {
                         ))}
                       </div>
                     ) : feature.customContent === "personalize-specialty" ? (
-                      <div className="relative grid grid-cols-2 gap-3 p-4">
+                      <div className="relative grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4">
                         {[
                           { title: "Anamnese", icon: "📋", color: "from-blue-400 to-blue-600" },
                           { title: "Evolução", icon: "📈", color: "from-brand-400 to-brand-600" },
@@ -1399,10 +1399,10 @@ export default function LandingPage() {
                             viewport={{ once: true }}
                             transition={{ delay: i * 0.1 }}
                             whileHover={{ scale: 1.1, y: -5 }}
-                            className={`relative bg-gradient-to-br ${item.color} rounded-xl p-3 md:p-4 lg:p-5 shadow-lg cursor-pointer`}
+                            className={`relative bg-gradient-to-br ${item.color} rounded-lg md:rounded-xl p-2.5 md:p-3 lg:p-4 shadow-lg cursor-pointer`}
                           >
-                            <div className="text-2xl md:text-3xl lg:text-4xl mb-1 md:mb-2">{item.icon}</div>
-                            <p className="text-white font-bold text-xs md:text-sm lg:text-base">{item.title}</p>
+                            <div className="text-xl md:text-2xl lg:text-3xl mb-0.5 md:mb-1">{item.icon}</div>
+                            <p className="text-white font-bold text-[10px] md:text-xs lg:text-sm">{item.title}</p>
                           </motion.div>
                         ))}
                       </div>
