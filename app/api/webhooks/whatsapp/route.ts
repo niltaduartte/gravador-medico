@@ -114,7 +114,20 @@ export async function POST(request: NextRequest) {
     // Extrair conteúdo da mensagem
     const { content, media_url, caption, type } = extractMessageContent(message, messageType)
 
-    // Salvar mensagem
+    // ================================================================
+    // PASSO 1: UPSERT do contato PRIMEIRO (resolver FK constraint)
+    // ================================================================
+    console.log('🔄 Criando/atualizando contato primeiro...')
+    await upsertWhatsAppContact({
+      remote_jid: key.remoteJid,
+      push_name: pushName || undefined,
+      is_group: key.remoteJid.includes('@g.us')
+    })
+    console.log('✅ Contato garantido:', key.remoteJid)
+
+    // ================================================================
+    // PASSO 2: INSERT da mensagem (agora o FK existe)
+    // ================================================================
     const messageInput: CreateMessageInput = {
       message_id: key.id,
       remote_jid: key.remoteJid,
@@ -129,16 +142,6 @@ export async function POST(request: NextRequest) {
     }
 
     const savedMessage = await upsertWhatsAppMessage(messageInput)
-
-    // Atualizar/criar contato (se tiver pushName)
-    if (pushName && !key.fromMe) {
-      await upsertWhatsAppContact({
-        remote_jid: key.remoteJid,
-        push_name: pushName,
-        is_group: key.remoteJid.includes('@g.us')
-      })
-    }
-
     console.log('✅ Mensagem salva:', savedMessage.id)
 
     return NextResponse.json({
