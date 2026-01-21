@@ -2,10 +2,37 @@
 -- PRODUCTS INTELLIGENCE - VERSÃO MINIMAL (SEM ERROS)
 -- =====================================================
 -- 
--- Esta versão cria TUDO do zero de forma limpa
--- Use APENAS se você ainda não tem tabelas criadas
+-- 🧹 CLEAN INSTALL: Remove estruturas antigas e recria
+-- Esta versão usa DROP CASCADE para forçar recriação
 --
--- Tempo de execução: ~2 segundos
+-- Tempo de execução: ~3 segundos
+-- =====================================================
+
+BEGIN; -- Inicia transação segura
+
+-- =====================================================
+-- FASE 1: LIMPEZA TOTAL (Remove estruturas antigas)
+-- =====================================================
+
+-- Remover Views e Funções antigas
+DROP VIEW IF EXISTS public.product_performance CASCADE;
+DROP VIEW IF EXISTS public.product_trends CASCADE;
+DROP FUNCTION IF EXISTS public.discover_products_from_sales() CASCADE;
+
+-- Remover tabela sales_items antiga (pode ter estrutura errada)
+-- O CASCADE remove todas as dependências automaticamente
+DROP TABLE IF EXISTS public.sales_items CASCADE;
+
+-- Remover índices órfãos (se existirem)
+DROP INDEX IF EXISTS public.idx_sales_items_sale_id;
+DROP INDEX IF EXISTS public.idx_sales_items_product_name;
+
+-- =====================================================
+-- FASE 2: CRIAÇÃO DAS TABELAS BASE
+-- =====================================================
+
+-- =====================================================
+-- FASE 2: CRIAÇÃO DAS TABELAS BASE
 -- =====================================================
 
 -- 1. Criar tabela de clientes (se não existir)
@@ -35,7 +62,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 3. Criar tabela de vendas
+-- 3. Criar tabela de vendas (se não existir)
 CREATE TABLE IF NOT EXISTS public.sales (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID REFERENCES public.customers(id),
@@ -47,12 +74,13 @@ CREATE TABLE IF NOT EXISTS public.sales (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 4. Criar tabela de itens de venda (CHAVE PARA RESOLVER O ERRO!)
-CREATE TABLE IF NOT EXISTS public.sales_items (
+-- 4. RECRIAR tabela de itens de venda (FORÇADO - sempre nova)
+-- Como demos DROP acima, esta tabela SEMPRE será criada com a estrutura correta
+CREATE TABLE public.sales_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sale_id UUID NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
     product_id UUID REFERENCES public.products(id),
-    product_name TEXT NOT NULL,
+    product_name TEXT NOT NULL, -- ✅ A coluna que estava faltando!
     product_sku TEXT,
     price DECIMAL(10,2) NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
@@ -377,3 +405,5 @@ CREATE POLICY "Itens de venda são privados"
 -- 2. Acessar: http://localhost:3000/admin/products
 -- 3. Clicar em "Sincronizar com Vendas"
 -- =====================================================
+
+COMMIT; -- ✅ Salva todas as mudanças com segurança
