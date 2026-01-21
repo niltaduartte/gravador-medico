@@ -12,6 +12,21 @@
 BEGIN; -- Inicia transação segura
 
 -- =====================================================
+-- FASE 0: PREPARAÇÃO - Criar colunas para Triggers
+-- =====================================================
+-- Alguns bancos têm triggers que atualizam updated_at automaticamente
+-- Precisamos criar essa coluna ANTES de qualquer UPDATE para evitar erros
+
+ALTER TABLE public.products 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+ALTER TABLE public.sales 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+ALTER TABLE public.customers
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+-- =====================================================
 -- FASE 1: CORREÇÃO DA TABELA PRODUCTS (ALTER TABLE)
 -- =====================================================
 -- Força a adição das colunas que estão faltando na tabela existente
