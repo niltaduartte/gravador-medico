@@ -11,6 +11,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -19,7 +20,7 @@ function LoginForm() {
     setLoading(true)
     setError("")
 
-    console.log('🔐 Iniciando login...', { email })
+    console.log('🔐 Iniciando login...', { email, rememberMe })
 
     try {
       // Login com API customizada (JWT)
@@ -43,6 +44,14 @@ function LoginForm() {
       // Salvar token no localStorage
       console.log('💾 Salvando token no localStorage...')
       localStorage.setItem('auth_token', data.token)
+      
+      // Se "Lembrar-me" estiver marcado, salvar por mais tempo
+      if (rememberMe) {
+        console.log('✅ Opção "Lembrar-me" ativada - sessão estendida')
+        localStorage.setItem('auth_remember', 'true')
+      } else {
+        localStorage.removeItem('auth_remember')
+      }
       console.log('✅ Token salvo!')
 
       // Redirecionar
@@ -99,7 +108,7 @@ function LoginForm() {
           transition={{ delay: 0.1 }}
           className="bg-gray-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-gray-700/50"
         >
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6" autoComplete="on">
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-200 mb-2">
@@ -109,7 +118,9 @@ function LoginForm() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="email username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -128,7 +139,9 @@ function LoginForm() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -136,6 +149,21 @@ function LoginForm() {
                   placeholder="••••••••"
                 />
               </div>
+            </div>
+
+            {/* Lembrar-me */}
+            <div className="flex items-center gap-2">
+              <input
+                id="remember"
+                name="remember"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-900/50 text-brand-500 focus:ring-2 focus:ring-brand-500 focus:ring-offset-0 cursor-pointer"
+              />
+              <label htmlFor="remember" className="text-sm text-gray-300 cursor-pointer select-none">
+                Lembrar-me neste navegador
+              </label>
             </div>
 
             {/* Erro */}
