@@ -5,6 +5,22 @@
 -- Auto-discovery de produtos + Performance Analytics
 -- =============================================
 
+-- 0️⃣ VERIFICAÇÃO DE PRÉ-REQUISITOS
+-- =============================================
+-- Verifica se as tabelas necessárias existem
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sales') THEN
+        RAISE EXCEPTION 'Tabela "sales" não existe. Execute o schema principal primeiro (01-schema-completo.sql)';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sales_items') THEN
+        RAISE EXCEPTION 'Tabela "sales_items" não existe. Execute o schema principal primeiro (01-schema-completo.sql)';
+    END IF;
+    
+    RAISE NOTICE 'Verificação OK: Tabelas sales e sales_items existem';
+END $$;
+
 -- 1️⃣ TABELA DE PRODUTOS (Catálogo Oficial)
 -- =============================================
 CREATE TABLE IF NOT EXISTS public.products (
