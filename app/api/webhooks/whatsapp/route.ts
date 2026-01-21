@@ -10,6 +10,54 @@ import { upsertWhatsAppMessage, upsertWhatsAppContact, messageExists } from '@/l
 import type { EvolutionMessagePayload, CreateMessageInput } from '@/lib/types/whatsapp'
 
 /**
+ * Busca a foto de perfil do contato na Evolution API
+ */
+async function fetchProfilePicture(remoteJid: string): Promise<string | null> {
+  try {
+    const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL
+    const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY
+    const EVOLUTION_INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) {
+      console.warn('⚠️ Variáveis de ambiente Evolution API não configuradas')
+      return null
+    }
+
+    // Endpoint: /chat/findProfilePicture/{instance}
+    const url = `${EVOLUTION_API_URL}/chat/findProfilePicture/${EVOLUTION_INSTANCE_NAME}`
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': EVOLUTION_API_KEY
+      },
+      body: JSON.stringify({
+        number: remoteJid
+      })
+    })
+
+    if (!response.ok) {
+      console.warn(`⚠️ Não foi possível buscar foto de perfil para ${remoteJid}`)
+      return null
+    }
+
+    const data = await response.json()
+    
+    // Evolution API retorna { profilePictureUrl: "https://..." }
+    if (data.profilePictureUrl) {
+      console.log(`📸 Foto de perfil encontrada para ${remoteJid}`)
+      return data.profilePictureUrl
+    }
+
+    return null
+  } catch (error) {
+    console.error('❌ Erro ao buscar foto de perfil:', error)
+    return null
+  }
+}
+
+/**
  * Extrai conteúdo e tipo da mensagem do payload da Evolution API
  */
 function extractMessageContent(message: any, messageType: string) {
@@ -115,18 +163,25 @@ export async function POST(request: NextRequest) {
     const { content, media_url, caption, type } = extractMessageContent(message, messageType)
 
     // ================================================================
-    // PASSO 1: UPSERT do contato PRIMEIRO (resolver FK constraint)
+    // PASSO 1: Buscar foto de perfil do contato
+    // ================================================================
+    console.log('📸 Buscando foto de perfil...')
+    const profilePictureUrl = await fetchProfilePicture(key.remoteJid)
+
+    // ================================================================
+    // PASSO 2: UPSERT do contato PRIMEIRO (resolver FK constraint)
     // ================================================================
     console.log('🔄 Criando/atualizando contato primeiro...')
     await upsertWhatsAppContact({
       remote_jid: key.remoteJid,
       push_name: pushName || undefined,
+      profile_picture_url: profilePictureUrl || undefined,
       is_group: key.remoteJid.includes('@g.us')
     })
     console.log('✅ Contato garantido:', key.remoteJid)
 
     // ================================================================
-    // PASSO 2: INSERT da mensagem (agora o FK existe)
+    // PASSO 3: INSERT da mensagem (agora o FK existe)
     // ================================================================
     const messageInput: CreateMessageInput = {
       message_id: key.id,
