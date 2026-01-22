@@ -109,7 +109,7 @@ export default function WebhookLogsPage() {
       {/* Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Total Disparos</p>
@@ -123,7 +123,7 @@ export default function WebhookLogsPage() {
         </Card>
 
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Sucesso</p>
@@ -137,7 +137,7 @@ export default function WebhookLogsPage() {
         </Card>
 
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Falhas</p>
@@ -151,7 +151,7 @@ export default function WebhookLogsPage() {
         </Card>
 
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Tempo Médio</p>

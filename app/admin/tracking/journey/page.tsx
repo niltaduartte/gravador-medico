@@ -185,7 +185,7 @@ export default function TrackingJourneyPage() {
       {/* Estatísticas do Funil */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Total de Etapas</p>
@@ -199,7 +199,7 @@ export default function TrackingJourneyPage() {
         </Card>
 
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Etapas Ativas</p>
@@ -215,7 +215,7 @@ export default function TrackingJourneyPage() {
         </Card>
 
         <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Taxa de Conversão Final</p>
