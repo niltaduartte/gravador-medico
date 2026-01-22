@@ -383,20 +383,8 @@ export async function POST(request: NextRequest) {
   try {
     const payload: EvolutionMessagePayload = await request.json()
     const eventName = (payload as any)?.event?.toLowerCase?.() || ''
-    const dataKey = (payload as any)?.data?.key
-    const dataMessageType = (payload as any)?.data?.messageType
 
-    console.log('📥 Webhook recebido:', {
-      event: payload.event,
-      instance: payload.instance,
-      remoteJid: dataKey?.remoteJid,
-      fromMe: dataKey?.fromMe,
-      messageType: dataMessageType,
-      fullKey: dataKey
-    })
-    
-    console.log('🔍 [DEBUG from_me] Valor recebido:', dataKey?.fromMe, typeof dataKey?.fromMe)
-
+    // ⚡ EARLY RETURN: Processar eventos de status/presença ANTES (mais rápido)
     // Atualizar status de mensagens (checks)
     if (eventName === 'messages.update' || eventName === 'messages_update') {
       const update = extractMessageStatusUpdate(payload)
@@ -456,6 +444,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ⚡ Apenas para mensagens UPSERT: extrair dados e logar
+    const dataKey = (payload as any)?.data?.key
+    
+    console.log('📥 Nova mensagem:', {
+      event: payload.event,
+      remoteJid: dataKey?.remoteJid,
+      fromMe: dataKey?.fromMe,
+      messageId: dataKey?.id
+    })
+
     const { key, message, messageType, messageTimestamp, pushName, status } = payload.data
     const normalizedRemoteJid = normalizeRemoteJid(
       key.remoteJid,
@@ -511,12 +509,9 @@ export async function POST(request: NextRequest) {
     // PASSO 3: INSERT da mensagem (agora o FK existe)
     // ================================================================
     
-    // 🔧 CORREÇÃO: Garantir que from_me seja boolean (pode vir como string ou outro tipo)
+    // 🔧 Garantir que from_me seja boolean
     const fromMeValue = (payload.data.key as any).fromMe
     const fromMeBoolean = fromMeValue === true || fromMeValue === 'true' || fromMeValue === 1
-    
-    console.log('🔍 [DEBUG CONVERSÃO] from_me original:', fromMeValue, typeof fromMeValue)
-    console.log('🔍 [DEBUG CONVERSÃO] from_me convertido:', fromMeBoolean, typeof fromMeBoolean)
     
     const mappedStatus = mapEvolutionStatus(status) ?? (fromMeBoolean ? 'sent' : undefined)
 
@@ -532,12 +527,11 @@ export async function POST(request: NextRequest) {
       status: mappedStatus,
       raw_payload: payload.data
     }
-    
-    console.log('🔍 [DEBUG SAVE] Salvando mensagem com from_me:', messageInput.from_me, typeof messageInput.from_me)
 
     const savedMessage = await upsertWhatsAppMessage(messageInput)
-    console.log(`✅ Mensagem salva: ${savedMessage.id}, from_me final: ${savedMessage.from_me}`)
+    console.log(`✅ Mensagem salva: ${savedMessage.id} | from_me: ${savedMessage.from_me}`)
 
+    // ⚡ Forward para N8N de forma assíncrona (não bloqueia resposta)
     if (shouldForwardToN8n(payload)) {
       void forwardToN8n(payload)
     }
