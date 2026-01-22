@@ -131,7 +131,9 @@ export async function getWhatsAppMessages(
     total: data?.length,
     fromMe: data?.filter(m => m.from_me).length,
     fromThem: data?.filter(m => !m.from_me).length,
-    error
+    error,
+    firstMessage: data?.[0],
+    lastMessage: data?.[data.length - 1]
   })
 
   if (error) {
