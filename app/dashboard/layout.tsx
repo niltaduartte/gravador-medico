@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ToastProvider } from "@/components/ui/toast"
+import { NotificationProvider } from "@/components/NotificationProvider"
+import { Toaster } from "sonner"
 import DockSidebar from "@/components/DockSidebar"
 
 const inter = Inter({ subsets: ["latin"], display: "swap" })
@@ -18,7 +20,15 @@ export default function DashboardLayout({
   return (
     <html lang="pt-BR">
       <body className={`${inter.className} antialiased bg-white overflow-x-hidden`}>
-        <ToastProvider>
+        <NotificationProvider>
+          <ToastProvider>
+            <Toaster
+              position="bottom-right"
+              className="z-[9999]"
+              toastOptions={{
+                style: { zIndex: 9999 }
+              }}
+            />
           {/* Aurora Gradients Background */}
           <div className="fixed inset-0 pointer-events-none overflow-hidden">
             {/* Blue Aurora */}
@@ -34,7 +44,8 @@ export default function DashboardLayout({
           <div className="pl-32">
             {children}
           </div>
-        </ToastProvider>
+          </ToastProvider>
+        </NotificationProvider>
       </body>
     </html>
   )

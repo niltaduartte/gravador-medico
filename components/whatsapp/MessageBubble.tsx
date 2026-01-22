@@ -14,15 +14,28 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
-  const isFromMe = message.from_me
-  
-  // DEBUG: Log temporário para verificar valor de from_me
-  console.log('🔍 [MessageBubble]', {
-    id: message.id.substring(0, 8),
-    content: message.content?.substring(0, 20),
-    from_me: message.from_me,
-    isFromMe: isFromMe
-  })
+  const rawFromMeValue = message?.raw_payload?.key?.fromMe as
+    | boolean
+    | string
+    | number
+    | undefined
+    | null
+
+  const rawFromMeNormalized =
+    rawFromMeValue === true ||
+    rawFromMeValue === 'true' ||
+    rawFromMeValue === 1 ||
+    rawFromMeValue === '1'
+
+  const fromMeValue = message.from_me as unknown as boolean | string | number
+  const fromMeNormalized =
+    fromMeValue === true ||
+    fromMeValue === 'true' ||
+    fromMeValue === 1 ||
+    fromMeValue === '1'
+
+  const hasRawFromMe = rawFromMeValue !== undefined && rawFromMeValue !== null
+  const isFromMe = hasRawFromMe ? rawFromMeNormalized : fromMeNormalized
 
   return (
     <div

@@ -14,8 +14,10 @@ import {
   BarChart3,
   Package,
   Bell,
+  ChevronDown,
   Search,
   ShieldAlert,
+  Sparkles,
   TrendingUp,
   ShoppingBag,
   CheckCircle2,
@@ -24,6 +26,95 @@ import {
   MessageCircle
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
+
+const automationItems = [
+  { 
+    icon: ShoppingBag, 
+    label: 'Carrinhos Abandonados', 
+    href: '/admin/abandoned-carts',
+    badge: null
+  },
+  { 
+    icon: Clock, 
+    label: 'Sala de Recuperação', 
+    href: '/admin/recovery',
+    badge: null
+  },
+  { 
+    icon: MessageSquare, 
+    label: 'WhatsApp', 
+    href: '/admin/whatsapp',
+    badge: null
+  },
+]
+
+const menuItems = [
+  { 
+    icon: LayoutDashboard, 
+    label: 'Visão Geral', 
+    href: '/admin/dashboard',
+    badge: null
+  },
+  { 
+    icon: ShoppingCart, 
+    label: 'Vendas', 
+    href: '/admin/sales',
+    badge: null
+  },
+  { 
+    icon: Users, 
+    label: 'Clientes', 
+    href: '/admin/customers',
+    badge: null
+  },
+  { 
+    icon: Package, 
+    label: 'Produtos', 
+    href: '/admin/products',
+    badge: null
+  },
+  { 
+    icon: TrendingUp, 
+    label: 'Analytics', 
+    href: '/admin/analytics',
+    badge: null
+  },
+  { 
+    icon: Users, 
+    label: 'CRM', 
+    href: '/admin/crm',
+    badge: null
+  },
+  { 
+    label: 'Automação', 
+    icon: Sparkles,
+    items: automationItems
+  },
+  { 
+    icon: MessageCircle, 
+    label: 'Chat Interno', 
+    href: '/admin/chat',
+    badge: null
+  },
+  { 
+    icon: BarChart3, 
+    label: 'Relatórios', 
+    href: '/admin/reports',
+    badge: null
+  },
+  { 
+    icon: Bell, 
+    label: 'Webhooks', 
+    href: '/admin/webhooks',
+    badge: null
+  },
+  { 
+    icon: Settings, 
+    label: 'Configurações', 
+    href: '/admin/settings',
+    badge: null
+  },
+]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -40,6 +131,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     abandonedCarts: 0,
     pendingOrders: 0,
     approvedOrders: 0,
+  })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    menuItems.forEach((item) => {
+      if ('items' in item) {
+        initial[item.label] = item.items.some((child) => child.href === pathname)
+      }
+    })
+    return initial
   })
 
   // Verificar autenticação e role de admin
@@ -70,6 +170,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [notificationsOpen])
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev }
+      menuItems.forEach((item) => {
+        if ('items' in item) {
+          if (item.items.some((child) => child.href === pathname)) {
+            next[item.label] = true
+          }
+        }
+      })
+      return next
+    })
+  }, [pathname])
 
   const loadNotifications = async () => {
     try {
@@ -128,86 +242,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/')
   }
 
-  const menuItems = [
-    { 
-      icon: LayoutDashboard, 
-      label: 'Visão Geral', 
-      href: '/admin/dashboard',
-      badge: null
-    },
-    { 
-      icon: ShoppingCart, 
-      label: 'Vendas', 
-      href: '/admin/sales',
-      badge: null
-    },
-    { 
-      icon: Users, 
-      label: 'Clientes', 
-      href: '/admin/customers',
-      badge: null
-    },
-    { 
-      icon: Package, 
-      label: 'Produtos', 
-      href: '/admin/products',
-      badge: null
-    },
-    { 
-      icon: TrendingUp, 
-      label: 'Analytics', 
-      href: '/admin/analytics',
-      badge: null
-    },
-    { 
-      icon: ShoppingBag, 
-      label: 'Carrinhos Abandonados', 
-      href: '/admin/abandoned-carts',
-      badge: null
-    },
-    { 
-      icon: Clock, 
-      label: 'Sala de Recuperação', 
-      href: '/admin/recovery',
-      badge: null
-    },
-    { 
-      icon: Users, 
-      label: 'CRM', 
-      href: '/admin/crm',
-      badge: null
-    },
-    { 
-      icon: MessageSquare, 
-      label: 'WhatsApp', 
-      href: '/admin/whatsapp',
-      badge: null
-    },
-    { 
-      icon: MessageCircle, 
-      label: 'Chat Interno', 
-      href: '/admin/chat',
-      badge: null
-    },
-    { 
-      icon: BarChart3, 
-      label: 'Relatórios', 
-      href: '/admin/reports',
-      badge: null
-    },
-    { 
-      icon: Bell, 
-      label: 'Webhooks', 
-      href: '/admin/webhooks',
-      badge: null
-    },
-    { 
-      icon: Settings, 
-      label: 'Configurações', 
-      href: '/admin/settings',
-      badge: null
-    },
-  ]
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }))
+  }
 
   if (loading) {
     return (
@@ -274,9 +314,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex relative">
+    <div className="h-[100dvh] bg-gradient-to-br from-gray-900 via-gray-800 to-black flex relative overflow-hidden">
       {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0 lg:z-40">
+      <aside className="hidden lg:flex lg:w-80 lg:flex-col lg:fixed lg:inset-y-0 lg:z-40">
         <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 overflow-y-auto shadow-2xl">
           {/* Logo */}
           <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-gray-700">
@@ -296,9 +336,61 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1">
             {menuItems.map((item) => {
+              if ('items' in item) {
+                const isGroupActive = item.items.some((child) => pathname === child.href)
+                const Icon = item.icon
+                const isOpen = !!openGroups[item.label]
+
+                return (
+                  <div key={item.label} className="space-y-1">
+                    <button
+                      onClick={() => toggleGroup(item.label)}
+                      className={`w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all ${
+                        isGroupActive
+                          ? 'bg-gray-800/70 text-white'
+                          : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isOpen && (
+                      <div className="ml-6 space-y-1">
+                        {item.items.map((child) => {
+                          const isActive = pathname === child.href
+                          const ChildIcon = child.icon
+
+                          return (
+                            <button
+                              key={child.href}
+                              onClick={() => router.push(child.href)}
+                              className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                isActive
+                                  ? 'bg-gradient-to-r from-brand-500/70 to-brand-600/70 text-white'
+                                  : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                              }`}
+                            >
+                              <ChildIcon className="w-4 h-4 mr-3" />
+                              <span className="flex-1 text-left">{child.label}</span>
+                              {child.badge && (
+                                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                  {child.badge}
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
               const isActive = pathname === item.href
               const Icon = item.icon
-              
+
               return (
                 <button
                   key={item.href}
@@ -385,9 +477,59 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* Navigation */}
               <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
                 {menuItems.map((item) => {
+                  if ('items' in item) {
+                    const isGroupActive = item.items.some((child) => pathname === child.href)
+                    const Icon = item.icon
+                    const isOpen = !!openGroups[item.label]
+
+                    return (
+                      <div key={item.label} className="space-y-1">
+                        <button
+                          onClick={() => toggleGroup(item.label)}
+                          className={`w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all ${
+                            isGroupActive
+                              ? 'bg-gray-800/70 text-white'
+                              : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5 mr-3" />
+                          <span className="flex-1 text-left">{item.label}</span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isOpen && (
+                          <div className="ml-6 space-y-1">
+                            {item.items.map((child) => {
+                              const isActive = pathname === child.href
+                              const ChildIcon = child.icon
+
+                              return (
+                                <button
+                                  key={child.href}
+                                  onClick={() => {
+                                    router.push(child.href)
+                                    setSidebarOpen(false)
+                                  }}
+                                  className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                    isActive
+                                      ? 'bg-gradient-to-r from-brand-500/70 to-brand-600/70 text-white'
+                                      : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                                  }`}
+                                >
+                                  <ChildIcon className="w-4 h-4 mr-3" />
+                                  <span className="flex-1 text-left">{child.label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+
                   const isActive = pathname === item.href
                   const Icon = item.icon
-                  
+
                   return (
                     <button
                       key={item.href}
@@ -439,7 +581,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:pl-72">
+      <div className="flex-1 flex flex-col lg:pl-80 min-h-0">
         {/* Top Bar */}
         <div className="sticky top-0 z-40 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 shadow-xl">
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
@@ -574,8 +716,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {/* Page Content */}
-        <main className={`flex-1 ${pathname === '/admin/whatsapp' ? 'p-0' : 'p-4 sm:p-6 lg:p-8 overflow-y-auto'}`}>
-          <div className={pathname === '/admin/whatsapp' ? 'h-full overflow-hidden' : ''}>
+        <main className={`flex-1 min-h-0 ${pathname === '/admin/whatsapp' ? 'p-0 overflow-hidden' : 'p-4 sm:p-6 lg:p-8 overflow-y-auto'}`}>
+          <div className={pathname === '/admin/whatsapp' ? 'h-full min-h-0 overflow-hidden' : ''}>
             {children}
           </div>
         </main>

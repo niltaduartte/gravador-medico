@@ -9,6 +9,10 @@ export interface WhatsAppContact {
   push_name?: string
   profile_picture_url?: string
   is_group: boolean
+  is_online?: boolean
+  last_seen_at?: string | null
+  is_typing?: boolean
+  typing_updated_at?: string | null
   
   // Última mensagem
   last_message_content?: string
@@ -148,4 +152,8 @@ export interface UpdateContactInput {
   push_name?: string
   profile_picture_url?: string
   is_group?: boolean
+  is_online?: boolean
+  last_seen_at?: string | null
+  is_typing?: boolean
+  typing_updated_at?: string | null
 }

@@ -32,12 +32,26 @@ export async function getWhatsAppConversations(): Promise<WhatsAppConversation[]
     error
   })
 
-  if (error) {
-    console.error('❌ Erro ao buscar conversas:', error)
-    throw error
+  if (!error) {
+    return data || []
   }
 
-  return data || []
+  console.warn('⚠️ View whatsapp_conversations indisponível, usando whatsapp_contacts.', error)
+
+  const { data: contacts, error: contactsError } = await supabaseAdmin
+    .from('whatsapp_contacts')
+    .select('*')
+    .order('last_message_timestamp', { ascending: false, nullsFirst: false })
+
+  if (contactsError) {
+    console.error('❌ Erro ao buscar contatos:', contactsError)
+    throw contactsError
+  }
+
+  return (contacts || []).map((contact) => ({
+    ...contact,
+    total_messages: 0
+  }))
 }
 
 /**
@@ -124,16 +138,18 @@ export async function getWhatsAppMessages(
     .from('whatsapp_messages')
     .select('*')
     .eq('remote_jid', remoteJid)
-    .order('timestamp', { ascending: true })
+    .order('timestamp', { ascending: false })
     .limit(limit)
 
+  const ordered = (data || []).slice().reverse()
+
   console.log('🔍 [getWhatsAppMessages] Resultado:', {
-    total: data?.length,
-    fromMe: data?.filter(m => m.from_me).length,
-    fromThem: data?.filter(m => !m.from_me).length,
+    total: ordered.length,
+    fromMe: ordered.filter(m => m.from_me).length,
+    fromThem: ordered.filter(m => !m.from_me).length,
     error,
-    firstMessage: data?.[0],
-    lastMessage: data?.[data.length - 1]
+    firstMessage: ordered[0],
+    lastMessage: ordered[ordered.length - 1]
   })
 
   if (error) {
@@ -141,7 +157,7 @@ export async function getWhatsAppMessages(
     throw error
   }
 
-  return data || []
+  return ordered
 }
 
 /**
@@ -209,6 +225,53 @@ export async function messageExists(messageId: string): Promise<boolean> {
 }
 
 /**
+ * Atualiza o status de uma mensagem (checks)
+ */
+export async function updateWhatsAppMessageStatus(
+  messageId: string,
+  status: WhatsAppMessage['status']
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('whatsapp_messages')
+    .update({ status })
+    .eq('message_id', messageId)
+
+  if (error) {
+    console.error('❌ Erro ao atualizar status da mensagem:', error)
+    throw error
+  }
+}
+
+/**
+ * Atualiza presenca do contato (online, visto por ultimo, digitando)
+ */
+export async function updateWhatsAppContactPresence(input: {
+  remote_jid: string
+  is_online?: boolean
+  last_seen_at?: string | null
+  is_typing?: boolean
+  typing_updated_at?: string | null
+}): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('whatsapp_contacts')
+    .upsert(
+      {
+        remote_jid: input.remote_jid,
+        is_online: input.is_online,
+        last_seen_at: input.last_seen_at,
+        is_typing: input.is_typing,
+        typing_updated_at: input.typing_updated_at
+      },
+      { onConflict: 'remote_jid', ignoreDuplicates: false }
+    )
+
+  if (error) {
+    console.error('❌ Erro ao atualizar presenca do contato:', error)
+    throw error
+  }
+}
+
+/**
  * Busca as últimas N mensagens globais (todas as conversas)
  */
 export async function getRecentMessages(limit = 50): Promise<WhatsAppMessage[]> {
@@ -239,8 +302,7 @@ export async function bulkInsertMessages(messages: CreateMessageInput[]): Promis
   const { data, error } = await supabaseAdmin
     .from('whatsapp_messages')
     .upsert(messages, {
-      onConflict: 'message_id',
-      ignoreDuplicates: true
+      onConflict: 'message_id'
     })
     .select()
 

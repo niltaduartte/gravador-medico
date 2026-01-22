@@ -8,8 +8,8 @@ import { upsertWhatsAppMessage } from '@/lib/whatsapp-db'
 // ================================================================
 // Mapear status da Evolution API para nosso schema
 // ================================================================
-function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'read' | 'error' {
-  if (!evolutionStatus) return 'sent'
+function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'read' | 'error' | undefined {
+  if (!evolutionStatus) return undefined
   
   const status = evolutionStatus.toUpperCase()
   
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       console.log('💾 Salvando mensagem enviada no banco...')
       
       // Mapear status da Evolution API
-      const messageStatus = data.status ? mapEvolutionStatus(data.status) : 'sent'
+      const messageStatus = mapEvolutionStatus(data.status) || 'sent'
       
       const savedMessage = await upsertWhatsAppMessage({
         message_id: data.key.id,

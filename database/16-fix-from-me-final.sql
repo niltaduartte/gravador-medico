@@ -1,45 +1,51 @@
 -- ================================================================
--- CORREÇÃO AUTOMÁTICA: Marcar mensagens enviadas como from_me=true
+-- CORRECAO AUTOMATICA: Ajustar from_me usando raw_payload.key.fromMe
 -- ================================================================
--- Baseado nos logs e IDs reais do banco
+-- Evita usar prefixos de message_id (nao confiavel)
 -- ================================================================
 
--- 1. Ver situação ANTES
+-- 1. Ver situacao ANTES
 SELECT 
-  '⚠️ ANTES DA CORREÇÃO' as status,
+  'ANTES DA CORRECAO' as status,
   from_me,
-  COUNT(*) as total,
-  STRING_AGG(DISTINCT LEFT(message_id, 4), ', ') as prefixos_ids
+  COUNT(*) as total
 FROM whatsapp_messages
 GROUP BY from_me
 ORDER BY from_me DESC;
 
--- 2. CORREÇÃO PRINCIPAL - IDs que começam com esses padrões são ENVIADOS
+-- 2. CORRECAO PRINCIPAL - usar raw_payload.key.fromMe quando disponivel
 UPDATE whatsapp_messages
-SET from_me = true
-WHERE from_me = false
-  AND message_id IS NOT NULL
-  AND (
-    -- Padrões identificados nos logs
-    message_id LIKE '3EB%'   -- Mensagens enviadas
-    OR message_id LIKE 'BAE%'   -- Mensagens enviadas
-    OR message_id LIKE '3EE%'   -- Mensagens enviadas  
-    OR message_id LIKE '3EF%'   -- Mensagens enviadas
-    OR message_id LIKE '3A%'    -- Mensagens enviadas
-    OR message_id LIKE '2551%'  -- Mensagens enviadas (automation)
-  );
+SET from_me = CASE
+  WHEN lower(raw_payload->'key'->>'fromMe') IN ('true', '1', 't') THEN true
+  WHEN lower(raw_payload->'key'->>'fromMe') IN ('false', '0', 'f') THEN false
+  ELSE from_me
+END
+WHERE raw_payload ? 'key'
+  AND (raw_payload->'key'->>'fromMe') IS NOT NULL;
 
--- 3. Ver situação DEPOIS
+-- 3. Atualizar ultimo status nas conversas (opcional)
+UPDATE whatsapp_contacts c
+SET last_message_from_me = m.from_me,
+    last_message_content = COALESCE(m.content, m.caption, '[Midia]'),
+    last_message_timestamp = m.timestamp
+FROM LATERAL (
+  SELECT from_me, content, caption, timestamp
+  FROM whatsapp_messages
+  WHERE remote_jid = c.remote_jid
+  ORDER BY timestamp DESC
+  LIMIT 1
+) m;
+
+-- 4. Ver situacao DEPOIS
 SELECT 
-  '✅ DEPOIS DA CORREÇÃO' as status,
+  'DEPOIS DA CORRECAO' as status,
   from_me,
-  COUNT(*) as total,
-  STRING_AGG(DISTINCT LEFT(message_id, 4), ', ') as prefixos_ids
+  COUNT(*) as total
 FROM whatsapp_messages
 GROUP BY from_me
 ORDER BY from_me DESC;
 
--- 4. Ver últimas 30 mensagens corrigidas
+-- 5. Ver ultimas 30 mensagens
 SELECT 
   LEFT(message_id, 20) as msg_id,
   LEFT(content, 40) as conteudo,
@@ -49,14 +55,9 @@ FROM whatsapp_messages
 ORDER BY timestamp DESC
 LIMIT 30;
 
--- 5. Verificar se há algum padrão não corrigido
+-- 6. Diagnostico: mensagens sem fromMe no raw_payload
 SELECT 
-  '🔍 IDs que ainda estão com from_me=false:' as analise,
-  LEFT(message_id, 4) as prefixo,
-  COUNT(*) as total,
-  STRING_AGG(LEFT(content, 30), ' | ') as exemplos
+  'SEM raw_payload.key.fromMe' as analise,
+  COUNT(*) as total
 FROM whatsapp_messages
-WHERE from_me = false
-  AND message_id IS NOT NULL
-GROUP BY LEFT(message_id, 4)
-ORDER BY total DESC;
+WHERE raw_payload->'key'->>'fromMe' IS NULL;

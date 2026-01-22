@@ -14,6 +14,14 @@ interface EvolutionSyncConfig {
   instanceName: string
 }
 
+function normalizeRemoteJid(remoteJid: string, remoteJidAlt?: string | null) {
+  if (remoteJid?.endsWith('@lid') && remoteJidAlt) {
+    return remoteJidAlt
+  }
+
+  return remoteJid
+}
+
 /**
  * Busca mensagens de uma conversa específica
  */
@@ -48,29 +56,41 @@ export async function syncConversationHistory(
     }
 
     const data = await response.json()
-    const messages = data.messages || []
+    const rawMessages = Array.isArray(data.messages)
+      ? data.messages
+      : (data.messages?.records || [])
 
-    console.log(`📥 Encontradas ${messages.length} mensagens`)
+    console.log(`📥 Encontradas ${rawMessages.length} mensagens`)
 
-    if (messages.length === 0) {
+    if (rawMessages.length === 0) {
       return 0
     }
 
     // Converter para o formato do banco
-    const messagesToInsert: CreateMessageInput[] = messages.map((msg: any) => {
+    const messagesToInsert: CreateMessageInput[] = rawMessages.map((msg: any) => {
       const { content, media_url, caption, type } = extractMessageContent(
         msg.message,
         msg.messageType
       )
+      const fromMeValue = msg.key?.fromMe
+      const fromMeBoolean =
+        fromMeValue === true ||
+        fromMeValue === 'true' ||
+        fromMeValue === 1 ||
+        fromMeValue === '1'
+      const normalizedRemoteJid = normalizeRemoteJid(
+        msg.key.remoteJid,
+        msg.key.remoteJidAlt
+      )
 
       return {
         message_id: msg.key.id,
-        remote_jid: msg.key.remoteJid,
+        remote_jid: normalizedRemoteJid,
         content,
         message_type: type,
         media_url,
         caption,
-        from_me: msg.key.fromMe,
+        from_me: fromMeBoolean,
         timestamp: new Date(msg.messageTimestamp * 1000).toISOString(),
         raw_payload: msg
       }
@@ -97,10 +117,12 @@ export async function getAllChats(config: EvolutionSyncConfig) {
     const url = `${config.apiUrl}/chat/findChats/${config.instanceName}`
     
     const response = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: {
-        'apikey': config.apiKey
-      }
+        'apikey': config.apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
     })
 
     if (!response.ok) {
@@ -108,7 +130,7 @@ export async function getAllChats(config: EvolutionSyncConfig) {
     }
 
     const data = await response.json()
-    return data || []
+    return Array.isArray(data) ? data : (data?.records || [])
 
   } catch (error) {
     console.error('❌ Erro ao buscar chats:', error)
@@ -129,19 +151,29 @@ export async function syncAllConversations(
     // 1. Buscar todas as conversas
     const chats = await getAllChats(config)
     console.log(`📋 Encontrados ${chats.length} chats`)
+    const normalizedChats = new Map<string, any>()
+
+    chats.forEach((chat: any) => {
+      const normalizedRemoteJid = normalizeRemoteJid(
+        chat.remoteJid,
+        chat.lastMessage?.key?.remoteJidAlt
+      )
+      if (!normalizedChats.has(normalizedRemoteJid)) {
+        normalizedChats.set(normalizedRemoteJid, chat)
+      }
+    })
 
     let totalMessages = 0
 
     // 2. Sincronizar cada conversa
-    for (const chat of chats) {
-      const remoteJid = chat.id
+    for (const [remoteJid, chat] of normalizedChats.entries()) {
 
       // Criar/atualizar contato
       await upsertWhatsAppContact({
         remote_jid: remoteJid,
-        name: chat.name,
+        name: chat.name || chat.pushName,
         push_name: chat.pushName,
-        profile_picture_url: chat.profilePictureUrl,
+        profile_picture_url: chat.profilePicUrl || chat.profilePictureUrl,
         is_group: remoteJid.includes('@g.us')
       })
 

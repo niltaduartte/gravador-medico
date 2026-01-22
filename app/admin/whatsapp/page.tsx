@@ -19,6 +19,8 @@ import ChatLayout from '@/components/whatsapp/ChatLayout'
 import ContactList from '@/components/whatsapp/ContactList'
 import MessageBubble from '@/components/whatsapp/MessageBubble'
 import { Send, Search, RefreshCw, MessageSquare } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { useNotifications } from '@/components/NotificationProvider'
 import { useSearchParams } from 'next/navigation'
 
@@ -95,8 +97,37 @@ export default function WhatsAppInboxPage() {
             console.log('✅ Mensagem do chat atual - Adicionando ao estado')
             setMessages((prev) => {
               // Evitar duplicatas
-              const exists = prev.some(msg => msg.id === newMessage.id)
+              const exists = prev.some(
+                (msg) =>
+                  msg.id === newMessage.id ||
+                  (newMessage.message_id && msg.message_id === newMessage.message_id)
+              )
               if (exists) return prev
+              if (newMessage.from_me) {
+                const incomingTs = Date.parse(newMessage.timestamp)
+                let replaced = false
+                const next = prev.map((msg) => {
+                  if (replaced) return msg
+                  if (
+                    (msg.id.startsWith('optimistic-') || msg.id.startsWith('contact-fallback-')) &&
+                    msg.from_me &&
+                    msg.remote_jid === newMessage.remote_jid &&
+                    msg.content === newMessage.content
+                  ) {
+                    const msgTs = Date.parse(msg.timestamp)
+                    if (
+                      !Number.isNaN(incomingTs) &&
+                      !Number.isNaN(msgTs) &&
+                      Math.abs(msgTs - incomingTs) <= 15000
+                    ) {
+                      replaced = true
+                      return newMessage
+                    }
+                  }
+                  return msg
+                })
+                if (replaced) return next
+              }
               return [...prev, newMessage]
             })
             
@@ -107,6 +138,28 @@ export default function WhatsAppInboxPage() {
           // Atualizar lista de conversas (sidebar) para mostrar última mensagem
           loadConversations()
           loadStats()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_messages'
+        },
+        (payload) => {
+          const updatedMessage = payload.new as WhatsAppMessage
+
+          if (updatedMessage.remote_jid === selectedRemoteJid) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === updatedMessage.id ||
+                (updatedMessage.message_id && msg.message_id === updatedMessage.message_id)
+                  ? { ...msg, ...updatedMessage }
+                  : msg
+              )
+            )
+          }
         }
       )
       .on(
@@ -137,6 +190,45 @@ export default function WhatsAppInboxPage() {
           })
           
           loadStats()
+
+          const updatedContact = payload.new as WhatsAppConversation
+          if (
+            updatedContact.remote_jid === selectedRemoteJid &&
+            updatedContact.last_message_from_me &&
+            updatedContact.last_message_timestamp
+          ) {
+            const incomingTime = Date.parse(updatedContact.last_message_timestamp)
+            if (!Number.isNaN(incomingTime)) {
+              setMessages((prev) => {
+                const alreadyInChat = prev.some((msg) => {
+                  if (!msg.from_me || msg.remote_jid !== updatedContact.remote_jid) return false
+                  const msgTime = Date.parse(msg.timestamp)
+                  if (Number.isNaN(msgTime)) return false
+                  const closeInTime = Math.abs(msgTime - incomingTime) <= 2000
+                  const sameContent = updatedContact.last_message_content
+                    ? msg.content === updatedContact.last_message_content
+                    : true
+                  return closeInTime && sameContent
+                })
+
+                if (alreadyInChat) return prev
+
+                const syntheticMessage: WhatsAppMessage = {
+                  id: `contact-fallback-${updatedContact.remote_jid}-${incomingTime}`,
+                  remote_jid: updatedContact.remote_jid,
+                  content: updatedContact.last_message_content || '[Mídia]',
+                  message_type: 'text',
+                  from_me: true,
+                  timestamp: updatedContact.last_message_timestamp,
+                  status: 'sent',
+                  created_at: updatedContact.last_message_timestamp
+                }
+
+                return [...prev, syntheticMessage]
+              })
+            }
+          }
+
         }
       )
       .on(
@@ -188,6 +280,20 @@ export default function WhatsAppInboxPage() {
   async function loadMessages(remoteJid: string) {
     setLoadingMessages(true)
     try {
+      try {
+        await fetch('/api/whatsapp/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sync-conversation',
+            remoteJid,
+            messagesLimit: 200
+          })
+        })
+      } catch (syncError) {
+        console.warn('⚠️ Falha ao sincronizar conversa (não crítico):', syncError)
+      }
+
       console.log('📥 [loadMessages] Carregando mensagens para:', remoteJid)
       const data = await getWhatsAppMessages(remoteJid, 200)
       console.log('📥 [loadMessages] Mensagens recebidas:', data.length, 'mensagens')
@@ -241,9 +347,46 @@ export default function WhatsAppInboxPage() {
     (c) => c.remote_jid === selectedRemoteJid
   )
 
+  const typingWindowMs = 8000
+  const typingActive =
+    !!selectedConversation?.is_typing &&
+    !!selectedConversation?.typing_updated_at &&
+    Date.now() - new Date(selectedConversation.typing_updated_at).getTime() < typingWindowMs
+
+  const presenceLabel = selectedConversation
+    ? typingActive
+      ? 'digitando...'
+      : selectedConversation.is_online
+      ? 'online'
+      : selectedConversation.last_seen_at
+      ? `visto por ultimo ${formatDistanceToNow(new Date(selectedConversation.last_seen_at), {
+          addSuffix: true,
+          locale: ptBR
+        })}`
+      : `${messages.length} mensagens`
+    : ''
+
   // Enviar mensagem
   async function handleSendMessage() {
     if (!newMessage.trim() || !selectedRemoteJid || sending) return
+
+    const messageText = newMessage.trim()
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const optimisticTimestamp = new Date().toISOString()
+    const optimisticMessage: WhatsAppMessage = {
+      id: optimisticId,
+      remote_jid: selectedRemoteJid,
+      content: messageText,
+      message_type: 'text',
+      from_me: true,
+      timestamp: optimisticTimestamp,
+      status: 'sent',
+      created_at: optimisticTimestamp
+    }
+
+    setMessages((prev) => [...prev, optimisticMessage])
+    setNewMessage('')
+    setTimeout(() => scrollToBottom(), 0)
 
     setSending(true)
     try {
@@ -252,7 +395,7 @@ export default function WhatsAppInboxPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           remoteJid: selectedRemoteJid,
-          message: newMessage.trim()
+          message: messageText
         })
       })
 
@@ -261,14 +404,31 @@ export default function WhatsAppInboxPage() {
         throw new Error(error.message || 'Erro ao enviar mensagem')
       }
 
-      // Limpar input
-      setNewMessage('')
-      
-      // Recarregar mensagens
-      await loadMessages(selectedRemoteJid)
-      
+      const payload = await response.json()
+      const apiMessage = payload?.data
+      const messageId = apiMessage?.key?.id
+      const messageTimestamp = apiMessage?.messageTimestamp
+      const updatedTimestamp =
+        typeof messageTimestamp === 'number'
+          ? new Date(messageTimestamp * 1000).toISOString()
+          : optimisticTimestamp
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === optimisticId
+            ? {
+                ...msg,
+                message_id: messageId || msg.message_id,
+                timestamp: updatedTimestamp
+              }
+            : msg
+        )
+      )
+
       console.log('✅ Mensagem enviada com sucesso')
     } catch (error) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
+      setNewMessage(messageText)
       console.error('❌ Erro ao enviar mensagem:', error)
       alert('Erro ao enviar mensagem. Tente novamente.')
     } finally {
@@ -313,9 +473,12 @@ export default function WhatsAppInboxPage() {
             {/* Ícones de ação */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  loadConversations()
-                  loadStats()
+                onClick={async () => {
+                  await loadConversations()
+                  await loadStats()
+                  if (selectedRemoteJid) {
+                    await loadMessages(selectedRemoteJid)
+                  }
                 }}
                 className="p-2 hover:bg-gray-700 rounded-full transition-colors"
                 title="Atualizar conversas"
@@ -411,7 +574,7 @@ export default function WhatsAppInboxPage() {
       }
     >
       {selectedConversation ? (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
           {/* Header do chat - Estilo WhatsApp */}
           <div className="h-[60px] bg-[#202c33] border-b border-gray-700 px-4 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
@@ -436,7 +599,7 @@ export default function WhatsAppInboxPage() {
                     selectedConversation.remote_jid}
                 </h3>
                 <p className="text-xs text-gray-400">
-                  {selectedConversation.total_messages} mensagens
+                  {presenceLabel}
                 </p>
               </div>
             </div>

@@ -33,23 +33,53 @@ interface AbandonedCart {
 export default function AbandonedCartsPage() {
   const [carts, setCarts] = useState<AbandonedCart[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'abandoned' | 'recovered'>('abandoned')
+  const [filter, setFilter] = useState<'all' | 'abandoned' | 'recovered'>('all')
+  const [dateFilter, setDateFilter] = useState<'all' | '7' | '15' | '30' | '60' | '90' | 'custom'>('all')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     loadCarts()
-  }, [filter])
+  }, [dateFilter, customStart, customEnd])
 
   async function loadCarts() {
     try {
       setLoading(true)
+      setLoadError(null)
       
       let query = supabase
         .from('abandoned_carts')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (filter !== 'all') {
-        query = query.eq('status', filter)
+      if (dateFilter !== 'all') {
+        const now = new Date()
+        let startDate: Date | null = null
+        let endDate: Date | null = null
+
+        if (dateFilter === 'custom') {
+          if (customStart && customEnd) {
+            startDate = new Date(`${customStart}T00:00:00`)
+            endDate = new Date(`${customEnd}T23:59:59.999`)
+          }
+        } else {
+          const days = Number(dateFilter)
+          startDate = new Date(now)
+          startDate.setDate(now.getDate() - days)
+          endDate = now
+        }
+
+        if (startDate && endDate) {
+          if (startDate > endDate) {
+            const temp = startDate
+            startDate = endDate
+            endDate = temp
+          }
+          query = query
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString())
+        }
       }
 
       const { data, error } = await query
@@ -59,6 +89,7 @@ export default function AbandonedCartsPage() {
       setCarts(data || [])
     } catch (error) {
       console.error('Erro ao carregar carrinhos:', error)
+      setLoadError('Não foi possível carregar os carrinhos agora.')
     } finally {
       setLoading(false)
     }
@@ -102,13 +133,19 @@ export default function AbandonedCartsPage() {
     window.location.href = `mailto:${cart.customer_email}?subject=${subject}&body=${body}`
   }
 
+  const normalizeStatus = (status?: string | null) => (status === 'recovered' ? 'recovered' : 'abandoned')
+
   const stats = {
     total: carts.length,
-    abandoned: carts.filter(c => c.status === 'abandoned').length,
-    recovered: carts.filter(c => c.status === 'recovered').length,
+    abandoned: carts.filter(c => normalizeStatus(c.status) === 'abandoned').length,
+    recovered: carts.filter(c => normalizeStatus(c.status) === 'recovered').length,
     totalValue: carts.reduce((sum, c) => sum + (c.cart_value || 0), 0),
-    lostRevenue: carts.filter(c => c.status === 'abandoned').reduce((sum, c) => sum + (c.cart_value || 0), 0)
+    lostRevenue: carts.filter(c => normalizeStatus(c.status) === 'abandoned').reduce((sum, c) => sum + (c.cart_value || 0), 0)
   }
+
+  const filteredCarts = filter === 'all'
+    ? carts
+    : carts.filter((c) => normalizeStatus(c.status) === filter)
 
   if (loading) {
     return (
@@ -175,49 +212,119 @@ export default function AbandonedCartsPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setFilter('abandoned')}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
-            filter === 'abandoned'
-              ? 'bg-red-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Abandonados ({stats.abandoned})
-        </button>
-        <button
-          onClick={() => setFilter('recovered')}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
-            filter === 'recovered'
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Recuperados ({stats.recovered})
-        </button>
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
-            filter === 'all'
-              ? 'bg-violet-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Todos ({stats.total})
-        </button>
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'all'
+                ? 'bg-violet-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Todos ({stats.total})
+          </button>
+          <button
+            onClick={() => setFilter('abandoned')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'abandoned'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Abandonados ({stats.abandoned})
+          </button>
+          <button
+            onClick={() => setFilter('recovered')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'recovered'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Recuperados ({stats.recovered})
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setDateFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              dateFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Todos
+          </button>
+          {(['7', '15', '30', '60', '90'] as const).map((days) => (
+            <button
+              key={days}
+              onClick={() => setDateFilter(days)}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                dateFilter === days
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {days} dias
+            </button>
+          ))}
+          <button
+            onClick={() => setDateFilter('custom')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              dateFilter === 'custom'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Personalizado
+          </button>
+        </div>
+
+        {dateFilter === 'custom' && (
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-300 mb-1">De</label>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white"
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-300 mb-1">Até</label>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Lista de carrinhos */}
       <div className="space-y-4">
-        {carts.length === 0 ? (
+        {loadError ? (
+          <Card className="p-8 text-center">
+            <p className="text-red-500 font-medium">{loadError}</p>
+          </Card>
+        ) : filteredCarts.length === 0 ? (
           <Card className="p-12 text-center">
             <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg">Nenhum carrinho {filter === 'all' ? '' : filter === 'abandoned' ? 'abandonado' : 'recuperado'} encontrado</p>
+            <p className="text-gray-600 text-lg">
+              Nenhum carrinho {filter === 'all' ? '' : filter === 'abandoned' ? 'abandonado' : 'recuperado'} encontrado
+            </p>
           </Card>
         ) : (
-          carts.map(cart => (
-            <Card key={cart.id} className={`p-6 ${cart.status === 'recovered' ? 'bg-green-50 border-green-200' : ''}`}>
+          filteredCarts.map(cart => {
+            const isRecovered = normalizeStatus(cart.status) === 'recovered'
+
+            return (
+            <Card key={cart.id} className={`p-6 ${isRecovered ? 'bg-green-50 border-green-200' : ''}`}>
               <div className="flex flex-col md:flex-row justify-between gap-4">
                 <div className="flex-1 space-y-3">
                   {/* Nome e Status */}
@@ -225,7 +332,7 @@ export default function AbandonedCartsPage() {
                     <h3 className="text-lg font-bold text-white">
                       {cart.customer_name || 'Nome não informado'}
                     </h3>
-                    {cart.status === 'recovered' ? (
+                    {isRecovered ? (
                       <span className="px-3 py-1 bg-green-600 text-white text-xs rounded-full flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
                         Recuperado
@@ -285,7 +392,7 @@ export default function AbandonedCartsPage() {
                   )}
 
                   {/* Info de recuperação */}
-                  {cart.status === 'recovered' && cart.recovered_at && (
+                  {isRecovered && cart.recovered_at && (
                     <div className="text-sm text-green-700">
                       ✅ Recuperado em {format(new Date(cart.recovered_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       {cart.recovered_order_id && ` • Pedido: ${cart.recovered_order_id}`}
@@ -294,7 +401,7 @@ export default function AbandonedCartsPage() {
                 </div>
 
                 {/* Ações */}
-                {cart.status === 'abandoned' && (
+                {!isRecovered && (
                   <div className="flex flex-col gap-2 min-w-[200px]">
                     <button
                       onClick={() => sendWhatsApp(cart)}
@@ -314,7 +421,7 @@ export default function AbandonedCartsPage() {
                 )}
               </div>
             </Card>
-          ))
+          )})
         )}
       </div>
     </div>

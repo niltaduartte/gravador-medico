@@ -6,7 +6,13 @@
 // ================================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { upsertWhatsAppMessage, upsertWhatsAppContact, messageExists } from '@/lib/whatsapp-db'
+import {
+  upsertWhatsAppMessage,
+  upsertWhatsAppContact,
+  messageExists,
+  updateWhatsAppMessageStatus,
+  updateWhatsAppContactPresence
+} from '@/lib/whatsapp-db'
 import type { EvolutionMessagePayload, CreateMessageInput } from '@/lib/types/whatsapp'
 
 // ================================================================
@@ -23,6 +29,154 @@ function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'r
   if (status === 'ERROR' || status === 'FAILED') return 'error'
   
   return 'sent' // default
+}
+
+function normalizeRemoteJid(remoteJid: string, remoteJidAlt?: string | null) {
+  if (remoteJid?.endsWith('@lid') && remoteJidAlt) {
+    return remoteJidAlt
+  }
+
+  return remoteJid
+}
+
+function normalizeFromMeValue(value: unknown) {
+  return value === true || value === 'true' || value === 1 || value === '1'
+}
+
+function shouldForwardToN8n(payload: EvolutionMessagePayload) {
+  const eventName = (payload as any)?.event?.toLowerCase()
+  if (eventName !== 'messages.upsert' && eventName !== 'messages_upsert') return false
+  const fromMeValue = (payload as any)?.data?.key?.fromMe
+  if (fromMeValue === undefined || fromMeValue === null) return false
+  return !normalizeFromMeValue(fromMeValue)
+}
+
+async function forwardToN8n(payload: EvolutionMessagePayload) {
+  const n8nUrl =
+    process.env.N8N_WEBHOOK_URL ||
+    'https://n8n-production-3342.up.railway.app/webhook/whatsapp'
+
+  if (!n8nUrl) return
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+    const response = await fetch(n8nUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      console.warn(`⚠️ [N8N] Forward falhou (HTTP ${response.status})`)
+    } else {
+      console.log('✅ [N8N] Forward enviado com sucesso')
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('⏱️ [N8N] Timeout ao encaminhar webhook')
+    } else {
+      console.warn('⚠️ [N8N] Erro ao encaminhar webhook:', error)
+    }
+  }
+}
+
+function extractMessageStatusUpdate(payload: any) {
+  const data = payload?.data
+  const directKey = data?.key
+  const arrayKey = Array.isArray(data) ? data[0]?.key : null
+  const nestedKey = data?.message?.key || data?.messageKey || data?.keys?.[0]
+  const key = directKey || arrayKey || nestedKey
+
+  const rawStatus =
+    data?.status ||
+    data?.update?.status ||
+    data?.updates?.[0]?.status ||
+    data?.statuses?.[0]?.status ||
+    null
+
+  const rawMessageId =
+    key?.id ||
+    data?.keyId ||
+    data?.messageId ||
+    data?.id ||
+    null
+
+  const remoteJid = normalizeRemoteJid(
+    key?.remoteJid || data?.remoteJid || data?.jid || '',
+    key?.remoteJidAlt || data?.remoteJidAlt || null
+  )
+
+  return {
+    messageId: rawMessageId,
+    status: rawStatus,
+    remoteJid: remoteJid || null
+  }
+}
+
+function extractPresenceUpdate(payload: any) {
+  const data = payload?.data || {}
+  const presences = data?.presences
+  let remoteJid =
+    data?.remoteJid ||
+    data?.id ||
+    data?.jid ||
+    data?.key?.remoteJid ||
+    null
+
+  let presence = data?.presence || null
+
+  if (!presence && presences && typeof presences === 'object') {
+    const keys = Object.keys(presences)
+    if (!remoteJid && keys.length > 0) {
+      remoteJid = keys[0]
+    }
+    presence = presences[remoteJid || keys[0]]
+  }
+
+  const presenceState =
+    presence?.lastKnownPresence ||
+    presence?.presence ||
+    presence?.state ||
+    data?.presence ||
+    data?.state ||
+    null
+
+  const lastSeenValue =
+    presence?.lastSeen ||
+    presence?.lastSeenTimestamp ||
+    data?.lastSeen ||
+    data?.lastSeenTimestamp ||
+    null
+
+  let lastSeenAt: string | undefined
+  if (typeof lastSeenValue === 'number') {
+    const ts = lastSeenValue < 1e12 ? lastSeenValue * 1000 : lastSeenValue
+    lastSeenAt = new Date(ts).toISOString()
+  } else if (typeof lastSeenValue === 'string') {
+    const parsed = Date.parse(lastSeenValue)
+    if (!Number.isNaN(parsed)) {
+      lastSeenAt = new Date(parsed).toISOString()
+    }
+  }
+
+  const presenceValue = typeof presenceState === 'string' ? presenceState.toLowerCase() : ''
+  const isTyping =
+    presenceValue === 'composing' ||
+    presenceValue === 'recording' ||
+    presenceValue === 'typing'
+  const isOnline = isTyping || presenceValue === 'available' || presenceValue === 'online'
+
+  return {
+    remoteJid,
+    isTyping,
+    isOnline,
+    lastSeenAt
+  }
 }
 
 /**
@@ -228,20 +382,74 @@ function extractMessageContent(message: any, messageType: string) {
 export async function POST(request: NextRequest) {
   try {
     const payload: EvolutionMessagePayload = await request.json()
+    const eventName = (payload as any)?.event?.toLowerCase?.() || ''
+    const dataKey = (payload as any)?.data?.key
+    const dataMessageType = (payload as any)?.data?.messageType
 
     console.log('📥 Webhook recebido:', {
       event: payload.event,
       instance: payload.instance,
-      remoteJid: payload.data.key.remoteJid,
-      fromMe: payload.data.key.fromMe,
-      messageType: payload.data.messageType,
-      fullKey: payload.data.key
+      remoteJid: dataKey?.remoteJid,
+      fromMe: dataKey?.fromMe,
+      messageType: dataMessageType,
+      fullKey: dataKey
     })
     
-    console.log('🔍 [DEBUG from_me] Valor recebido:', payload.data.key.fromMe, typeof payload.data.key.fromMe)
+    console.log('🔍 [DEBUG from_me] Valor recebido:', dataKey?.fromMe, typeof dataKey?.fromMe)
+
+    // Atualizar status de mensagens (checks)
+    if (eventName === 'messages.update' || eventName === 'messages_update') {
+      const update = extractMessageStatusUpdate(payload)
+      if (!update.messageId || !update.status) {
+        return NextResponse.json({
+          success: true,
+          message: 'Atualizacao de status ignorada (dados insuficientes)'
+        })
+      }
+
+      const mappedStatus = mapEvolutionStatus(update.status)
+      if (!mappedStatus) {
+        return NextResponse.json({
+          success: true,
+          message: 'Atualizacao de status ignorada (status invalido)'
+        })
+      }
+
+      await updateWhatsAppMessageStatus(update.messageId, mappedStatus)
+
+      return NextResponse.json({
+        success: true,
+        message: 'Status atualizado com sucesso'
+      })
+    }
+
+    // Atualizar presenca (online, visto por ultimo, digitando)
+    if (eventName === 'presence.update' || eventName === 'presence_update') {
+      const presence = extractPresenceUpdate(payload)
+      if (!presence.remoteJid) {
+        return NextResponse.json({
+          success: true,
+          message: 'Presenca ignorada (remoteJid ausente)'
+        })
+      }
+
+      const now = new Date().toISOString()
+      await updateWhatsAppContactPresence({
+        remote_jid: presence.remoteJid,
+        is_online: presence.isOnline,
+        last_seen_at: presence.lastSeenAt || now,
+        is_typing: presence.isTyping,
+        typing_updated_at: presence.isTyping ? now : null
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Presenca atualizada com sucesso'
+      })
+    }
 
     // Ignorar eventos que não são de mensagens
-    if (payload.event !== 'messages.upsert') {
+    if (eventName !== 'messages.upsert' && eventName !== 'messages_upsert') {
       return NextResponse.json({ 
         success: true, 
         message: 'Evento ignorado (não é messages.upsert)' 
@@ -249,6 +457,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { key, message, messageType, messageTimestamp, pushName, status } = payload.data
+    const normalizedRemoteJid = normalizeRemoteJid(
+      key.remoteJid,
+      (key as any).remoteJidAlt
+    )
 
     // Verificar se mensagem já existe (evitar duplicatas)
     const exists = await messageExists(key.id)
@@ -269,7 +481,7 @@ export async function POST(request: NextRequest) {
     // IMPORTANTE: Passa participant para identificar remetente em grupos
     // ================================================================
     const profilePictureUrl = await fetchProfilePicture(
-      key.remoteJid, 
+      normalizedRemoteJid, 
       key.participant,  // Para mensagens de grupo
       payload.data
     )
@@ -284,12 +496,12 @@ export async function POST(request: NextRequest) {
     // ================================================================
     try {
       await upsertWhatsAppContact({
-        remote_jid: key.remoteJid,
+        remote_jid: normalizedRemoteJid,
         push_name: pushName || undefined,
         profile_picture_url: profilePictureUrl || undefined,
-        is_group: key.remoteJid.includes('@g.us')
+        is_group: normalizedRemoteJid.includes('@g.us')
       })
-      console.log(`✅ Contato salvo: ${key.remoteJid}`)
+      console.log(`✅ Contato salvo: ${normalizedRemoteJid}`)
     } catch (contactError) {
       console.error('❌ Erro ao salvar contato:', contactError)
       throw contactError
@@ -306,16 +518,18 @@ export async function POST(request: NextRequest) {
     console.log('🔍 [DEBUG CONVERSÃO] from_me original:', fromMeValue, typeof fromMeValue)
     console.log('🔍 [DEBUG CONVERSÃO] from_me convertido:', fromMeBoolean, typeof fromMeBoolean)
     
+    const mappedStatus = mapEvolutionStatus(status) ?? (fromMeBoolean ? 'sent' : undefined)
+
     const messageInput: CreateMessageInput = {
       message_id: key.id,
-      remote_jid: key.remoteJid,
+      remote_jid: normalizedRemoteJid,
       content,
       message_type: type,
       media_url,
       caption,
       from_me: fromMeBoolean,
       timestamp: new Date(messageTimestamp * 1000).toISOString(),
-      status: mapEvolutionStatus(status),
+      status: mappedStatus,
       raw_payload: payload.data
     }
     
@@ -323,6 +537,10 @@ export async function POST(request: NextRequest) {
 
     const savedMessage = await upsertWhatsAppMessage(messageInput)
     console.log(`✅ Mensagem salva: ${savedMessage.id}, from_me final: ${savedMessage.from_me}`)
+
+    if (shouldForwardToN8n(payload)) {
+      void forwardToN8n(payload)
+    }
 
     return NextResponse.json({
       success: true,

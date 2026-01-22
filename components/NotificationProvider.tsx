@@ -4,7 +4,7 @@
 
 'use client'
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react'
 import type { Notification, NotificationContextValue } from '@/lib/types/notifications'
 import { toast } from 'sonner'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -15,6 +15,7 @@ const NotificationContext = createContext<NotificationContextValue | undefined>(
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const lastNotifiedRef = useRef<Record<string, string>>({})
 
   // Calcular não lidas
   const unreadCount = notifications.filter(n => !n.read).length
@@ -108,9 +109,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           const newMessage = payload.new as WhatsAppMessage
+          const rawFromMeValue = (newMessage as any)?.raw_payload?.key?.fromMe
+          const rawFromMeNormalized =
+            rawFromMeValue === true ||
+            rawFromMeValue === 'true' ||
+            rawFromMeValue === 1 ||
+            rawFromMeValue === '1'
+          const hasRawFromMe = rawFromMeValue !== undefined && rawFromMeValue !== null
+          const isFromMe = hasRawFromMe ? rawFromMeNormalized : newMessage.from_me === true
           
           console.log('🔔 [NotificationProvider] Nova mensagem via Realtime:', {
             from_me: newMessage.from_me,
+            raw_from_me: rawFromMeValue,
             content: newMessage.content?.substring(0, 30),
             remote_jid: newMessage.remote_jid
           })
@@ -118,9 +128,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           // ⚠️ IMPORTANTE: Só notificar mensagens RECEBIDAS (não enviadas por mim)
           // from_me === true = mensagem enviada pelo SISTEMA
           // from_me === false = mensagem recebida do CLIENTE
-          if (newMessage.from_me === true) {
+          if (isFromMe) {
             console.log('🚫 [NotificationProvider] Ignorando notificação (mensagem enviada por mim)')
             return
+          }
+
+          if (newMessage.remote_jid && newMessage.timestamp) {
+            lastNotifiedRef.current[newMessage.remote_jid] = newMessage.timestamp
           }
           
           // Buscar dados do contato
@@ -147,6 +161,47 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       )
       .subscribe((status) => {
         console.log('📡 WhatsApp Realtime:', status)
+      })
+
+    // Canal WhatsApp (fallback por contato) - evita perder notificações
+    const whatsappContactChannel = supabaseAdmin
+      .channel('global-whatsapp-contacts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_contacts'
+        },
+        (payload) => {
+          const updatedContact = payload.new as any
+          const lastTimestamp = updatedContact?.last_message_timestamp as string | undefined
+          const lastFromMe = updatedContact?.last_message_from_me
+
+          if (!lastTimestamp || lastFromMe !== false) {
+            return
+          }
+
+          const lastNotified = lastNotifiedRef.current[updatedContact.remote_jid]
+          if (lastNotified && new Date(lastTimestamp) <= new Date(lastNotified)) {
+            return
+          }
+
+          lastNotifiedRef.current[updatedContact.remote_jid] = lastTimestamp
+
+          addNotification({
+            type: 'whatsapp_message',
+            title: updatedContact.name || updatedContact.push_name || updatedContact.remote_jid?.split('@')[0] || 'WhatsApp',
+            message: updatedContact.last_message_content || '[Mídia]',
+            metadata: {
+              whatsapp_remote_jid: updatedContact.remote_jid,
+              profile_picture_url: updatedContact.profile_picture_url
+            }
+          })
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 WhatsApp Contacts Realtime:', status)
       })
 
     // Canal Chat Interno
@@ -188,6 +243,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     return () => {
       supabaseAdmin.removeChannel(whatsappChannel)
+      supabaseAdmin.removeChannel(whatsappContactChannel)
       supabaseAdmin.removeChannel(chatChannel)
     }
   }, [addNotification])
