@@ -35,6 +35,7 @@ export default function AdminChatPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showNewChatModal, setShowNewChatModal] = useState(false)
   const [adminUsers, setAdminUsers] = useState<any[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { addNotification } = useNotifications()
@@ -48,6 +49,7 @@ export default function AdminChatPage() {
         
         if (error || !user) {
           console.error('Erro ao obter usuário:', error)
+          setLoading(false) // 👈 IMPORTANTE: Desativa loading antes de redirecionar
           router.push('/admin/login')
           return
         }
@@ -56,6 +58,7 @@ export default function AdminChatPage() {
         setCurrentUserId(user.id)
       } catch (err) {
         console.error('Erro ao carregar usuário:', err)
+        setLoading(false) // 👈 IMPORTANTE: Desativa loading antes de redirecionar
         router.push('/admin/login')
       }
     }
@@ -165,9 +168,22 @@ export default function AdminChatPage() {
   const loadConversations = async () => {
     if (!currentUserId) return
     
-    const data = await getUserConversations(currentUserId)
-    setConversations(data)
-    setLoading(false)
+    try {
+      const data = await getUserConversations(currentUserId)
+      setConversations(data)
+      setLoading(false)
+      setError(null)
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar conversas:', error)
+      setLoading(false)
+      
+      // Detectar se é erro de tabela não existente
+      if (error?.message?.includes('relation') || error?.message?.includes('does not exist')) {
+        setError('Banco de dados não configurado. Execute o SQL em database/10-admin-chat-schema.sql no Supabase.')
+      } else {
+        setError('Erro ao carregar conversas. Verifique o console.')
+      }
+    }
   }
 
   const loadMessages = async (conversationId: string) => {
@@ -240,7 +256,27 @@ export default function AdminChatPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#111b21]">
-        <div className="text-white">Carregando...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <div className="text-white">Carregando...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#111b21]">
+        <div className="max-w-md p-6 bg-red-900/20 border border-red-700 rounded-lg text-center">
+          <h3 className="text-red-500 font-bold text-lg mb-2">❌ Erro</h3>
+          <p className="text-white text-sm mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
+          >
+            Recarregar Página
+          </button>
+        </div>
       </div>
     )
   }
