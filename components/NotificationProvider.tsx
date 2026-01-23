@@ -13,11 +13,15 @@ import type { AdminChatMessage } from '@/lib/types/admin-chat'
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined)
 
+// Armazenamento global para evitar duplicatas mesmo após recarregar
+const globalSeenNotifications = new Set<string>()
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const lastWhatsAppMessageIdRef = useRef<string | null>(null)
   const lastAdminChatMessageIdRef = useRef<string | null>(null)
-  const seenNotificationsRef = useRef<Set<string>>(new Set())
+  const seenNotificationsRef = useRef<Set<string>>(globalSeenNotifications)
+  const isSubscribedRef = useRef<boolean>(false)
 
   // Calcular não lidas
   const unreadCount = notifications.filter(n => !n.read).length
@@ -127,10 +131,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // REALTIME: Escutar mensagens WhatsApp e Chat Interno
   // ================================================================
   useEffect(() => {
+    // Evitar subscrição dupla
+    if (isSubscribedRef.current) {
+      console.log('⚠️ NotificationProvider: Já está subscrito, ignorando...')
+      return
+    }
+    isSubscribedRef.current = true
+    
     console.log('🔌 NotificationProvider: Conectando ao Realtime...')
 
     // Canal WhatsApp
-  const whatsappChannel = supabase
+    const whatsappChannel = supabase
       .channel('global-whatsapp-notifications')
       .on(
         'postgres_changes',
@@ -141,6 +152,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           const newMessage = payload.new as WhatsAppMessage
+          
+          // Deduplicação imediata por ID da mensagem
+          const msgKey = `whatsapp:${newMessage.id}`
+          if (seenNotificationsRef.current.has(msgKey)) {
+            console.log('🚫 [NotificationProvider] Duplicata ignorada:', msgKey)
+            return
+          }
+          seenNotificationsRef.current.add(msgKey)
+          
           const fromMe = normalizeFromMe(newMessage.from_me)
           lastWhatsAppMessageIdRef.current = newMessage.id
           
