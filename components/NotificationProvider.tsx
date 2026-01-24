@@ -22,6 +22,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const lastAdminChatMessageIdRef = useRef<string | null>(null)
   const seenNotificationsRef = useRef<Set<string>>(globalSeenNotifications)
   const isSubscribedRef = useRef<boolean>(false)
+  const isBootstrappedRef = useRef<boolean>(false) // 🔥 Flag para indicar que bootstrap terminou
 
   // Calcular não lidas
   const unreadCount = notifications.filter(n => !n.read).length
@@ -161,10 +162,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         async (payload) => {
           const newMessage = payload.new as WhatsAppMessage
           
+          // 🔥 IMPORTANTE: Só notificar APÓS bootstrap completar
+          if (!isBootstrappedRef.current) {
+            console.log('⏳ [Realtime] Aguardando bootstrap - mensagem ignorada')
+            return
+          }
+          
           // Deduplicação imediata por ID da mensagem
           const msgKey = `whatsapp:${newMessage.id}`
           if (seenNotificationsRef.current.has(msgKey)) {
-            console.log('🚫 [NotificationProvider] Duplicata ignorada:', msgKey)
+            console.log('🚫 [Realtime] Duplicata ignorada:', msgKey)
             return
           }
           seenNotificationsRef.current.add(msgKey)
@@ -172,7 +179,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const fromMe = normalizeFromMe(newMessage.from_me)
           lastWhatsAppMessageIdRef.current = newMessage.id
           
-          console.log('🔔 [NotificationProvider] Nova mensagem via Realtime:', {
+          console.log('🔔 [Realtime] Nova mensagem WhatsApp:', {
             from_me: newMessage.from_me,
             content: newMessage.content?.substring(0, 30),
             remote_jid: newMessage.remote_jid
@@ -182,7 +189,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           // from_me === true = mensagem enviada pelo SISTEMA
           // from_me === false = mensagem recebida do CLIENTE
           if (fromMe) {
-            console.log('🚫 [NotificationProvider] Ignorando notificação (mensagem enviada por mim)')
+            console.log('🚫 [Realtime] Ignorando notificação (mensagem enviada por mim)')
             return
           }
           
@@ -195,7 +202,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           
           const contactName = contact?.name || contact?.push_name || newMessage.remote_jid.split('@')[0]
           
-          console.log('✅ [NotificationProvider] Criando notificação:', contactName)
+          console.log('✅ [Realtime] Criando notificação:', contactName)
           
           addNotification({
             type: 'whatsapp_message',
@@ -225,6 +232,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           const newMessage = payload.new as AdminChatMessage
+          
+          // 🔥 IMPORTANTE: Só notificar APÓS bootstrap completar
+          if (!isBootstrappedRef.current) {
+            console.log('⏳ [Realtime Chat] Aguardando bootstrap - mensagem ignorada')
+            return
+          }
+          
           lastAdminChatMessageIdRef.current = newMessage.id
           
           // Buscar dados do sender
@@ -235,6 +249,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             .single()
           
           const senderName = sender?.name || sender?.email || 'Admin'
+          
+          console.log('🔔 [Realtime Chat] Nova mensagem:', senderName)
           
           addNotification({
             type: 'admin_chat_message',
@@ -280,8 +296,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           seenNotificationsRef.current.add(msgKey)
           console.log('🔵 [Bootstrap] Última mensagem WhatsApp marcada como vista:', msgKey)
         }
-      } catch {
-        // Ignorar falhas no bootstrap
+      } catch (err) {
+        console.error('❌ [Bootstrap] Erro ao buscar última mensagem WhatsApp:', err)
       }
 
       try {
@@ -299,12 +315,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           seenNotificationsRef.current.add(chatKey)
           console.log('🔵 [Bootstrap] Última mensagem Chat marcada como vista:', chatKey)
         }
-      } catch {
-        // Ignorar falhas no bootstrap
+      } catch (err) {
+        console.error('❌ [Bootstrap] Erro ao buscar última mensagem Chat:', err)
+      }
+      
+      // 🔥 IMPORTANTE: Marcar bootstrap como completo ANTES de iniciar polling
+      if (!cancelled) {
+        isBootstrappedRef.current = true
+        console.log('✅ [Bootstrap] Completo - Agora pode notificar mensagens novas')
       }
     }
 
     const pollNotifications = async () => {
+      // 🔥 IMPORTANTE: Só processar notificações APÓS bootstrap completar
+      if (!isBootstrappedRef.current) {
+        console.log('⏳ [Polling] Aguardando bootstrap completar...')
+        return
+      }
+      
       try {
         const params = new URLSearchParams({
           lastWhatsAppId: lastWhatsAppMessageIdRef.current || '',
@@ -327,6 +355,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               contact?.push_name ||
               latestWhatsApp.remote_jid.split('@')[0]
 
+            console.log('🔔 [Polling] Nova mensagem WhatsApp detectada:', contactName)
+            
             addNotification({
               type: 'whatsapp_message',
               title: contactName,
@@ -350,6 +380,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             .single()
 
           const senderName = sender?.name || sender?.email || 'Admin'
+
+          console.log('🔔 [Polling] Nova mensagem Chat detectada:', senderName)
 
           addNotification({
             type: 'admin_chat_message',
