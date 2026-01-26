@@ -223,7 +223,8 @@ export default function CheckoutPage() {
 
   // Cupons disponíveis (hardcoded como installments)
   const CUPONS: Record<string, { type: 'fixed' | 'percent', value: number }> = {
-    'ADMGM': { type: 'fixed', value: 35 }
+    'ADMGM': { type: 'fixed', value: 35 },
+    'DESCONTOGC': { type: 'percent', value: 70 }
   }
 
   // Calcular desconto do cupom COM PROTEÇÃO CONTRA VALORES NEGATIVOS
