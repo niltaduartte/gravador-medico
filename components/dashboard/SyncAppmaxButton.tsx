@@ -1,0 +1,91 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+export function SyncAppmaxButton() {
+  const [syncing, setSyncing] = useState(false)
+  const [result, setResult] = useState<any>(null)
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true)
+      setResult(null)
+      
+      toast.info('Iniciando sincronização com Appmax...')
+
+      const response = await fetch('/api/admin/sync-appmax', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+        },
+        body: JSON.stringify({
+          days: 30 // Últimos 30 dias
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao sincronizar')
+      }
+
+      setResult(data.stats)
+      toast.success(`Sincronização concluída! ${data.stats.successful} pedidos importados`)
+      
+      // Recarregar página após 2 segundos
+      setTimeout(() => {
+        window.location.reload()
+      }, 2000)
+
+    } catch (error: any) {
+      console.error('Erro na sincronização:', error)
+      toast.error(error.message || 'Erro ao sincronizar com Appmax')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Button
+        onClick={handleSync}
+        disabled={syncing}
+        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+      >
+        {syncing ? (
+          <>
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            Sincronizando...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Sincronizar Pedidos Appmax
+          </>
+        )}
+      </Button>
+
+      {result && (
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-2">
+          <div className="flex items-center gap-2 text-green-400">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="font-semibold">Sincronização Concluída</span>
+          </div>
+          <div className="text-sm text-gray-300 space-y-1">
+            <p>✅ <strong>{result.successful}</strong> pedidos importados</p>
+            <p>📦 <strong>{result.total}</strong> pedidos processados</p>
+            {result.failed > 0 && (
+              <p className="text-yellow-400">
+                ⚠️ <strong>{result.failed}</strong> pedidos com erro
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

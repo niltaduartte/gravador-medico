@@ -8,6 +8,7 @@ import OperationalHealth from '@/components/dashboard/OperationalHealth'
 import RealtimeFeed from '@/components/dashboard/RealtimeFeed'
 import { RealtimeVisitors } from '@/components/dashboard/RealtimeVisitors'
 import { FraudAnalysisCard } from '@/components/dashboard/FraudAnalysisCard'
+import { SyncAppmaxButton } from '@/components/dashboard/SyncAppmaxButton'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { RefreshCw, Download, MousePointerClick, Link2, Zap, TrendingUp, ArrowRight } from 'lucide-react'
 
@@ -138,6 +139,7 @@ Relatório gerado automaticamente pelo Gravador Médico
         </div>
         <div className="flex gap-3 flex-wrap">
           <RealtimeVisitors />
+          <SyncAppmaxButton />
           <button
             onClick={loadAllData}
             disabled={refreshing}
