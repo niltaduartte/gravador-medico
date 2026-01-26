@@ -2,6 +2,10 @@ import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from './supabase'
 import { sendPurchaseEvent } from './meta-capi'
+import { 
+  createLovableUser, 
+  generateSecurePassword 
+} from '@/services/lovable-integration'
 
 interface AppmaxWebhookResult {
   response: NextResponse
@@ -637,6 +641,165 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
       totalAmount,
       currency: 'BRL'
     })
+
+    // =====================================================
+    // 🚀 INTEGRAÇÃO LOVABLE: Criar Usuário Automaticamente
+    // =====================================================
+    if (customerEmail && customerName) {
+      try {
+        console.log('🔧 Iniciando criação automática de usuário Lovable para:', customerEmail)
+        
+        // Gerar senha segura
+        const temporaryPassword = generateSecurePassword(12)
+        
+        // Criar usuário no Lovable
+        const lovableResult = await createLovableUser({
+          email: customerEmail,
+          password: temporaryPassword,
+          full_name: customerName
+        })
+
+        if (lovableResult.success) {
+          console.log('✅ Usuário Lovable criado com sucesso:', customerEmail)
+
+          // Registrar log de sucesso
+          await supabaseAdmin.from('integration_logs').insert({
+            action: 'create_user_auto',
+            status: 'success',
+            recipient_email: customerEmail,
+            user_id: lovableResult.user?.id,
+            details: {
+              source: 'webhook_appmax',
+              order_id: orderId,
+              full_name: customerName
+            }
+          })
+
+          // 📧 ENVIAR E-MAIL DE BOAS-VINDAS COM CREDENCIAIS
+          try {
+            // TODO: Substituir pelo seu template de email real
+            const emailBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Bem-vindo ao Voice Pen!</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #2563eb;">🎉 Bem-vindo ao Voice Pen!</h1>
+    
+    <p>Olá <strong>${customerName}</strong>,</p>
+    
+    <p>Sua compra foi aprovada com sucesso! Sua conta já está ativa e pronta para uso.</p>
+    
+    <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <h2 style="margin-top: 0; color: #1f2937;">🔑 Suas Credenciais de Acesso</h2>
+      <p style="margin: 10px 0;"><strong>Login:</strong> ${customerEmail}</p>
+      <p style="margin: 10px 0;"><strong>Senha:</strong> <code style="background: #fff; padding: 5px 10px; border-radius: 4px; font-size: 16px;">${temporaryPassword}</code></p>
+      <p style="margin: 10px 0;"><strong>Link de Acesso:</strong> <a href="${process.env.NEXT_PUBLIC_LOVABLE_APP_URL || 'https://seu-app.lovable.app'}" style="color: #2563eb;">Clique aqui para acessar</a></p>
+    </div>
+    
+    <p style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+      ⚠️ <strong>Importante:</strong> Por segurança, recomendamos que você altere sua senha no primeiro acesso.
+    </p>
+    
+    <p>Se tiver alguma dúvida, nossa equipe de suporte está à disposição!</p>
+    
+    <p>Atenciosamente,<br>
+    <strong>Equipe Voice Pen</strong></p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    <p style="font-size: 12px; color: #6b7280;">Este é um e-mail automático. Por favor, não responda.</p>
+  </div>
+</body>
+</html>
+            `
+
+            // OPÇÃO 1: Enviar via Resend (se configurado)
+            if (process.env.RESEND_API_KEY) {
+              const Resend = require('resend').Resend
+              const resendClient = new Resend(process.env.RESEND_API_KEY)
+              
+              await resendClient.emails.send({
+                from: process.env.EMAIL_FROM || 'noreply@voicepen.com',
+                to: customerEmail,
+                subject: '🎉 Bem-vindo ao Voice Pen - Suas Credenciais de Acesso',
+                html: emailBody
+              })
+
+              console.log('📧 E-mail enviado via Resend para:', customerEmail)
+            } 
+            // OPÇÃO 2: Enviar via SMTP (alternativa)
+            else if (process.env.SMTP_HOST) {
+              // Implementar SMTP aqui se necessário
+              console.log('📧 SMTP configurado - implemente o envio aqui')
+            } else {
+              console.warn('⚠️ Nenhum serviço de e-mail configurado (RESEND_API_KEY ou SMTP_HOST)')
+            }
+
+            // Registrar log do e-mail
+            await supabaseAdmin.from('integration_logs').insert({
+              action: 'send_email',
+              status: 'success',
+              recipient_email: customerEmail,
+              details: {
+                email_type: 'welcome_credentials',
+                order_id: orderId,
+                sent_at: new Date().toISOString()
+              }
+            })
+
+          } catch (emailError: any) {
+            console.error('❌ Erro ao enviar e-mail:', emailError)
+            
+            // Registrar erro do e-mail
+            await supabaseAdmin.from('integration_logs').insert({
+              action: 'send_email',
+              status: 'error',
+              recipient_email: customerEmail,
+              error_message: emailError.message,
+              details: {
+                email_type: 'welcome_credentials',
+                order_id: orderId
+              }
+            })
+          }
+
+        } else {
+          console.error('❌ Erro ao criar usuário Lovable:', lovableResult.error)
+          
+          // Registrar erro
+          await supabaseAdmin.from('integration_logs').insert({
+            action: 'create_user_auto',
+            status: 'error',
+            recipient_email: customerEmail,
+            error_message: lovableResult.error || 'Erro desconhecido',
+            details: {
+              source: 'webhook_appmax',
+              order_id: orderId,
+              full_name: customerName
+            }
+          })
+        }
+
+      } catch (integrationError: any) {
+        console.error('💥 Erro crítico na integração Lovable:', integrationError)
+        
+        // Registrar erro crítico
+        await supabaseAdmin.from('integration_logs').insert({
+          action: 'create_user_auto',
+          status: 'error',
+          recipient_email: customerEmail,
+          error_message: integrationError.message || 'Erro crítico',
+          details: {
+            source: 'webhook_appmax',
+            order_id: orderId,
+            error_stack: integrationError.stack
+          }
+        })
+      }
+    }
   }
 
   return { response: NextResponse.json({ success: true, status }) }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, FileText, Video, Settings, ShoppingBag, Sparkles } from "lucide-react"
+import { Home, FileText, Video, Settings, ShoppingBag, Sparkles, Users, Mail, ExternalLink } from "lucide-react"
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -12,6 +12,11 @@ export default function Sidebar() {
     { icon: FileText, label: "Meus Prompts", href: "/dashboard/prompts" },
     { icon: Video, label: "Tutoriais", href: "/dashboard/tutoriais" },
     { icon: Settings, label: "Configurações", href: "/dashboard/configuracoes" },
+  ]
+
+  const lovableMenuItems = [
+    { icon: Users, label: "Usuários", href: "/admin/lovable/users" },
+    { icon: Mail, label: "Logs de E-mail", href: "/admin/lovable/emails" },
   ]
   
   return (
@@ -30,7 +35,8 @@ export default function Sidebar() {
       </div>
       
       {/* Menu Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto">
+        {/* Menu Principal */}
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon
@@ -53,6 +59,40 @@ export default function Sidebar() {
             )
           })}
         </ul>
+
+        {/* Seção LOVABLE */}
+        <div className="mt-6">
+          <div className="px-4 mb-2">
+            <div className="flex items-center gap-2">
+              <ExternalLink className="w-4 h-4 text-slate-400" />
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Integração Lovable
+              </h3>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {lovableMenuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href
+              
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                      isActive
+                        ? "bg-purple-50 text-purple-700 font-medium"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-sm">{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       </nav>
       
       {/* VIP Area - Loja de Prompts */}
