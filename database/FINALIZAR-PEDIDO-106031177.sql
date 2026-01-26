@@ -16,7 +16,6 @@ SET
     coupon_code = 'DESCONTOGC',
     coupon_discount = ROUND((total_amount / 0.30) * 0.70, 2),  -- 70% do valor original
     updated_at = NOW(),
-    paid_at = NOW(),
     metadata = jsonb_set(
         jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
@@ -70,7 +69,6 @@ SELECT
     coupon_discount,
     ROUND((coupon_discount / (total_amount + coupon_discount)) * 100, 2) as desconto_percentual,
     payment_method,
-    paid_at,
     created_at,
     updated_at
 FROM public.sales 

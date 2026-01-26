@@ -574,8 +574,6 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
       status,
       failure_reason: failureReason || null,
       payment_method: paymentMethod,
-      paid_at: SUCCESS_STATUSES.has(status) ? now : null,
-      refunded_at: status === 'refunded' ? now : null,
       updated_at: now
     }
 

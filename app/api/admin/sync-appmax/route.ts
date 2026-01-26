@@ -130,8 +130,6 @@ async function syncOrder(order: any) {
     // Datas
     const now = new Date().toISOString()
     const createdAt = order.created_at || order.date || now
-    const paidAt = (status === 'paid' || status === 'approved') ? (order.paid_at || createdAt) : null
-    const refundedAt = status === 'refunded' ? (order.refunded_at || now) : null
 
     // Criar/atualizar sale
     const salePayload: Record<string, any> = {
@@ -148,8 +146,6 @@ async function syncOrder(order: any) {
       coupon_discount: couponDiscount,
       status: status,
       payment_method: paymentMethod,
-      paid_at: paidAt,
-      refunded_at: refundedAt,
       created_at: createdAt,
       updated_at: now,
       metadata: {
