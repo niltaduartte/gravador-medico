@@ -53,7 +53,8 @@ async function fetchAppmaxOrders(days: number = 30) {
   // NÃO filtrar por data - buscar TODOS os pedidos
   // A Appmax às vezes não respeita o filtro de data corretamente
 
-  console.log(`📡 Buscando pedidos da Appmax: ${url.toString()}`)
+  console.log(`📡 [APPMAX] URL: ${url.toString()}`)
+  console.log(`📡 [APPMAX] Token: ${APPMAX_API_TOKEN ? 'Configurado (***' + APPMAX_API_TOKEN.slice(-4) + ')' : 'NÃO CONFIGURADO'}`)
 
   const response = await fetch(url.toString(), {
     method: 'GET',
@@ -63,14 +64,20 @@ async function fetchAppmaxOrders(days: number = 30) {
     }
   })
 
+  console.log(`📡 [APPMAX] Response status: ${response.status} ${response.statusText}`)
+
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('❌ Erro da API Appmax:', errorText)
+    console.error('❌ [APPMAX] Erro da API:', errorText)
     throw new Error(`Appmax API error: ${response.status} ${response.statusText}`)
   }
 
   const data = await response.json()
-  console.log(`✅ Appmax retornou ${data.data?.length || 0} pedidos`)
+  console.log(`✅ [APPMAX] Estrutura da resposta:`, Object.keys(data))
+  console.log(`✅ [APPMAX] Total de pedidos retornados: ${data.data?.length || 0}`)
+  if (data.data && data.data.length > 0) {
+    console.log(`✅ [APPMAX] Primeiro pedido (amostra):`, JSON.stringify(data.data[0], null, 2))
+  }
   
   // Filtrar localmente por data (últimos X dias)
   const startDate = new Date()
@@ -81,7 +88,8 @@ async function fetchAppmaxOrders(days: number = 30) {
     return orderDate >= startDate
   })
   
-  console.log(`📅 Filtrados ${filteredOrders.length} pedidos dos últimos ${days} dias`)
+  console.log(`📅 [APPMAX] Data de corte: ${startDate.toISOString()}`)
+  console.log(`📅 [APPMAX] Pedidos filtrados (últimos ${days} dias): ${filteredOrders.length}`)
   
   return filteredOrders
 }
