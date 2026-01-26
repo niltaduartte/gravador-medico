@@ -40,12 +40,12 @@ export function SyncAppmaxButton() {
 
       setResult(data.stats)
       console.log('✅ [SYNC] Sucesso! Stats:', data.stats)
-      toast.success(`Sincronização concluída! ${data.stats.successful} pedidos importados`)
+      toast.success(`Sincronização concluída! ${data.stats.successful} pedidos importados. Recarregue a página para ver os resultados.`)
       
-      // Recarregar página após 2 segundos
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
+      // NÃO recarregar automaticamente - deixar usuário ver os logs
+      // setTimeout(() => {
+      //   window.location.reload()
+      // }, 2000)
 
     } catch (error: any) {
       console.error('❌ [SYNC] Erro na sincronização:', error)
