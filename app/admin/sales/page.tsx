@@ -33,6 +33,7 @@ interface Sale {
   status: string
   failure_reason?: string
   payment_method: string
+  payment_gateway?: string
   created_at: string
   updated_at?: string
   utm_source?: string
@@ -205,6 +206,31 @@ export default function SalesPage() {
     }
   }
 
+  const getGatewayBadge = (gateway?: string) => {
+    if (!gateway) return null
+    
+    switch (gateway.toLowerCase()) {
+      case 'mercadopago':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            🛡️ MP
+          </span>
+        )
+      case 'appmax':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+            ⚡ AppMax
+          </span>
+        )
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+            {gateway}
+          </span>
+        )
+    }
+  }
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
     console.log(`${label} copiado: ${text}`)
@@ -316,6 +342,7 @@ export default function SalesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Valor</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Cupom</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Método</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Gateway</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Data</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Origem</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Ações</th>
@@ -364,6 +391,9 @@ export default function SalesPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-2xl">{getPaymentMethodIcon(sale.payment_method)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getGatewayBadge(sale.payment_gateway)}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                         <div className="font-medium text-gray-300">{formatBRDateTime(sale.created_at)}</div>
                       </td>

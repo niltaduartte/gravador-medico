@@ -694,6 +694,7 @@ export async function fetchConversionFunnel(
 /**
  * Busca dados para o gráfico principal do dashboard
  * Agrupa vendas por dia dos últimos 30 dias
+ * ATUALIZADO: Busca de sales (inclui MP + AppMax)
  */
 export async function fetchSalesChartData(
   supabase: SupabaseClient,
@@ -702,12 +703,13 @@ export async function fetchSalesChartData(
   try {
     const { startIso, endIso } = resolveIsoRange(options)
     
+    // Busca da tabela sales (dados reais de MP + AppMax)
     const { data, error } = await supabase
-      .from('checkout_attempts')
-      .select('created_at, total_amount, status')
+      .from('sales')
+      .select('created_at, total_amount, order_status, payment_gateway')
       .gte('created_at', startIso)
       .lte('created_at', endIso)
-      .in('status', ['paid', 'approved', 'completed'])
+      .in('order_status', ['paid', 'provisioning', 'active'])
       .order('created_at', { ascending: true })
 
     if (error) {
@@ -722,21 +724,33 @@ export async function fetchSalesChartData(
 
     // Agrupa por dia no JavaScript (eficiente para 30 dias)
     const grouped = data.reduce((acc: any, curr) => {
-      const date = new Date(curr.created_at).toLocaleDateString('pt-BR')
+      const dateObj = new Date(curr.created_at)
+      const date = dateObj.toISOString().split('T')[0] // YYYY-MM-DD
       if (!acc[date]) {
         acc[date] = { 
           date, 
           amount: 0, 
-          sales: 0 
+          sales: 0,
+          mp_sales: 0,
+          appmax_sales: 0
         }
       }
-      acc[date].amount += Number(curr.total_amount || 0)
+      const amount = Number(curr.total_amount || 0)
+      acc[date].amount += amount
       acc[date].sales += 1
+      
+      // Separa por gateway
+      if (curr.payment_gateway === 'mercadopago') {
+        acc[date].mp_sales += 1
+      } else if (curr.payment_gateway === 'appmax') {
+        acc[date].appmax_sales += 1
+      }
+      
       return acc
     }, {})
 
     const chartData = Object.values(grouped)
-    console.log('📊 Dados do gráfico:', chartData.length, 'dias')
+    console.log('📊 Dados do gráfico:', chartData.length, 'dias (inclui MP + AppMax)')
     
     return { data: chartData, error: null }
   } catch (error) {
@@ -807,5 +821,128 @@ export async function fetchFunnelData(
   } catch (error) {
     console.error('❌ Erro ao buscar funil:', error)
     return []
+  }
+}
+
+// ========================================
+// 8. FETCH: Estatísticas por Gateway (Mercado Pago + AppMax)
+// ========================================
+/**
+ * Busca estatísticas de performance dos gateways de pagamento
+ * Inclui dados de Mercado Pago, AppMax e sistema de cascata
+ */
+export async function fetchGatewayStats(
+  supabase: SupabaseClient,
+  options?: RangeOptions
+): Promise<{ data: any[]; error: any }> {
+  try {
+    const { startIso, endIso } = resolveIsoRange(options)
+    
+    const { data, error } = await supabase.rpc('get_gateway_stats', {
+      start_date: startIso,
+      end_date: endIso
+    })
+
+    if (error) {
+      console.error('❌ Erro ao buscar estatísticas de gateway:', error)
+      return { data: [], error }
+    }
+
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('❌ Exceção ao buscar estatísticas de gateway:', error)
+    return { data: [], error }
+  }
+}
+
+// ========================================
+// 9. FETCH: Análise de Cascata (MP → AppMax)
+// ========================================
+/**
+ * Busca dados completos da análise de cascata
+ * Mostra quanto foi aprovado direto no MP vs resgatado pelo AppMax
+ */
+export async function fetchCascataAnalysis(
+  supabase: SupabaseClient
+): Promise<{ data: any; error: any }> {
+  try {
+    const { data, error } = await supabase
+      .from('cascata_analysis')
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('❌ Erro ao buscar análise de cascata:', error)
+      return { 
+        data: {
+          mp_total: 0,
+          mp_approved: 0,
+          mp_rejected: 0,
+          mp_revenue: 0,
+          mp_approval_rate: 0,
+          rescued_count: 0,
+          rescued_revenue: 0,
+          rescue_rate: 0,
+          appmax_direct: 0,
+          appmax_direct_revenue: 0,
+          total_sales: 0,
+          total_revenue: 0
+        }, 
+        error 
+      }
+    }
+
+    return { data, error: null }
+  } catch (error) {
+    console.error('❌ Exceção ao buscar análise de cascata:', error)
+    return { 
+      data: {
+        mp_total: 0,
+        mp_approved: 0,
+        mp_rejected: 0,
+        mp_revenue: 0,
+        mp_approval_rate: 0,
+        rescued_count: 0,
+        rescued_revenue: 0,
+        rescue_rate: 0,
+        appmax_direct: 0,
+        appmax_direct_revenue: 0,
+        total_sales: 0,
+        total_revenue: 0
+      }, 
+      error 
+    }
+  }
+}
+
+// ========================================
+// 10. FETCH: Performance por Gateway (Diária)
+// ========================================
+/**
+ * Busca performance diária de cada gateway para gráficos temporais
+ */
+export async function fetchGatewayPerformance(
+  supabase: SupabaseClient,
+  options?: RangeOptions
+): Promise<{ data: any[]; error: any }> {
+  try {
+    const { startIso, endIso } = resolveIsoRange(options)
+    
+    const { data, error } = await supabase
+      .from('payment_gateway_performance')
+      .select('*')
+      .gte('sale_date', startIso.split('T')[0])
+      .lte('sale_date', endIso.split('T')[0])
+      .order('sale_date', { ascending: true })
+
+    if (error) {
+      console.error('❌ Erro ao buscar performance de gateway:', error)
+      return { data: [], error }
+    }
+
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('❌ Exceção ao buscar performance de gateway:', error)
+    return { data: [], error }
   }
 }

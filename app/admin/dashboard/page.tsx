@@ -9,6 +9,7 @@ import RealtimeFeed from '@/components/dashboard/RealtimeFeed'
 import { RealtimeVisitors } from '@/components/dashboard/RealtimeVisitors'
 import { FraudAnalysisCard } from '@/components/dashboard/FraudAnalysisCard'
 import { SyncAppmaxButton } from '@/components/dashboard/SyncAppmaxButton'
+import GatewayStatsCard from '@/components/dashboard/GatewayStatsCard'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { RefreshCw, Download, MousePointerClick, Link2, Zap, TrendingUp, ArrowRight } from 'lucide-react'
 
@@ -214,6 +215,13 @@ Relatório gerado automaticamente pelo Gravador Médico
 
       {/* KPIs */}
       <BigNumbers metrics={metrics} loading={loading} periodLabel={periodLabel} />
+
+      {/* Gateway Performance Stats */}
+      <GatewayStatsCard 
+        startDate={filterType === 'custom' ? startDate : undefined}
+        endDate={filterType === 'custom' ? endDate : undefined}
+        days={filterType === 'quick' ? quickDays : undefined}
+      />
 
       {/* Acesso Rápido aos Módulos */}
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
