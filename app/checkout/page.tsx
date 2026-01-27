@@ -585,21 +585,27 @@ export default function CheckoutPage() {
         utm_term: typeof window !== 'undefined' ? sessionStorage.getItem('utm_term') || undefined : undefined,
       }
 
+      // Formato enterprise: customer object + amount
       const payload: any = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        cpf: formData.cpf.replace(/\D/g, ''),
-        paymentMethod: paymentMethod,
+        customer: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          cpf: formData.cpf.replace(/\D/g, ''),
+        },
+        amount: total,
+        payment_method: paymentMethod === 'credit' ? 'credit_card' : 'pix',
         orderBumps: selectedBumpProducts,
-        discount: cupomDiscount > 0 ? cupomDiscount : undefined, // Envia desconto se houver
-        coupon_code: appliedCupom || undefined, // Envia código do cupom
+        discount: cupomDiscount > 0 ? cupomDiscount : undefined,
+        coupon_code: appliedCupom || undefined,
         session_id: sessionId,
         utm_params: utmParams,
       }
       
-      // Se for cartão, adiciona dados do cartão
+      // Se for cartão, tokeniza com Mercado Pago e envia token
       if (paymentMethod === 'credit') {
+        // TODO: Tokenizar com MP SDK
+        payload.mpToken = 'TOKEN_DO_MP' // Placeholder
         payload.cardData = {
           number: cardData.number.replace(/\s/g, ''),
           holderName: cardData.holderName,
