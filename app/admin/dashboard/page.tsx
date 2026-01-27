@@ -139,10 +139,7 @@ Relatório gerado automaticamente pelo Gravador Médico
           <h1 className="text-3xl font-black text-white">Visão Geral</h1>
           <p className="text-gray-400 mt-1">Acompanhe suas métricas em tempo real</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          <SyncMercadoPagoButton />
-          <SyncAppmaxButton />
-          <RealtimeVisitors />
+        <div className="flex gap-3 flex-wrap items-center">
           <button
             onClick={loadAllData}
             disabled={refreshing}
@@ -158,6 +155,24 @@ Relatório gerado automaticamente pelo Gravador Médico
             <Download className="w-4 h-4" />
             Exportar
           </button>
+          <RealtimeVisitors />
+        </div>
+      </div>
+
+      {/* Sincronização */}
+      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-brand-400" />
+              Sincronização de Vendas
+            </h3>
+            <p className="text-sm text-gray-400 mt-1">Importar vendas históricas do Mercado Pago e Appmax</p>
+          </div>
+          <div className="flex gap-3 flex-wrap relative">
+            <SyncMercadoPagoButton />
+            <SyncAppmaxButton />
+          </div>
         </div>
       </div>
 
@@ -342,7 +357,8 @@ Relatório gerado automaticamente pelo Gravador Médico
                 <p className="text-sm text-gray-400 mt-1">Evolução do faturamento</p>
               </div>
             </div>
-            <div className="h-[300px] w-full">
+            {/* 🔧 FIX: Container com altura fixa para Recharts */}
+            <div className="w-full h-[350px] min-h-[350px]">
               {loading ? (
                 <div className="h-full w-full bg-gray-700/30 animate-pulse rounded" />
               ) : (

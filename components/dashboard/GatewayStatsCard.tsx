@@ -79,8 +79,8 @@ export default function GatewayStatsCard({ startDate, endDate, days = 30 }: Gate
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value)
   }
 
@@ -117,12 +117,11 @@ export default function GatewayStatsCard({ startDate, endDate, days = 30 }: Gate
         >
           <div className="flex items-center gap-2 mb-3">
             <Image 
-              src="/mercado-pago-logo.png" 
+              src="/logo-mercadopago-blanco.png" 
               alt="Mercado Pago" 
-              width={80} 
-              height={32}
+              width={100} 
+              height={40}
               className="object-contain brightness-0 invert"
-              style={{ filter: 'brightness(0) invert(1)' }}
             />
           </div>
           
@@ -158,8 +157,13 @@ export default function GatewayStatsCard({ startDate, endDate, days = 30 }: Gate
           className="bg-gradient-to-br from-purple-600/10 to-purple-500/5 border border-purple-500/20 rounded-xl p-4"
         >
           <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-5 h-5 text-purple-400" />
-            <span className="text-sm font-semibold text-purple-300">AppMax</span>
+            <Image 
+              src="/appmax-logo.png" 
+              alt="Appmax" 
+              width={100} 
+              height={40}
+              className="object-contain brightness-0 invert"
+            />
           </div>
           
           {appmaxStats ? (

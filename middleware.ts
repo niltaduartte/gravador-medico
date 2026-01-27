@@ -51,10 +51,13 @@ function setSecurityHeaders(response: NextResponse): NextResponse {
       "default-src 'self'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sdk.mercadopago.com https://challenges.cloudflare.com https://www.googletagmanager.com https://connect.facebook.net",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
+      "img-src 'self' blob: data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://api.mercadopago.com https://api.mercadopago.com.br https://*.mercadolibre.com https://*.mercadopago.com https://api.appmax.com.br https://www.google-analytics.com",
+      "media-src 'self' data:", // ✅ ADICIONADO: Permite sons base64
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadopago.com.br https://*.mercadolibre.com https://*.mercadopago.com https://api.appmax.com.br https://www.google-analytics.com", // ✅ ADICIONADO: wss://*.supabase.co
       "frame-src 'self' https://challenges.cloudflare.com https://www.mercadolibre.com https://*.mercadolibre.com",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests"
     ].join('; ')
   );
   

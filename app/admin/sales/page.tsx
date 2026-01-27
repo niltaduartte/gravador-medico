@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { formatBRDateTime, getUTCDayRange } from '@/lib/date-utils'
 import { refundOrder } from '@/actions/refund-order'
 import { SyncAppmaxButton } from '@/components/dashboard/SyncAppmaxButton'
+import { SyncMercadoPagoButton } from '@/components/dashboard/SyncMercadoPagoButton'
 import Image from 'next/image'
 import {
   Search,
@@ -166,7 +167,8 @@ export default function SalesPage() {
       }
     }
 
-    if (['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'expired', 'chargeback'].includes(normalizedStatus)) {
+    // ⚠️ IMPORTANTE: NÃO incluir 'expired' aqui! Já tratado acima com etiqueta cinza
+    if (['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'chargeback'].includes(normalizedStatus)) {
       return {
         label: failureReason || 'Cancelado',
         className: 'bg-red-500 text-white border-red-600 font-semibold',
@@ -202,12 +204,14 @@ export default function SalesPage() {
       case 'pix': return '💠'
       case 'boleto': return '📄'
       case 'credit_card':
+      case 'creditcard':
       case 'cartao':
       case 'credit':
       case 'debit_card':
       case 'debito':
       case 'card':
-      default: return '�' // Cartão como padrão
+        return '💳'
+      default: return '💳' // Cartão como padrão
     }
   }
 
@@ -217,26 +221,57 @@ export default function SalesPage() {
     switch (gateway.toLowerCase()) {
       case 'mercadopago':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-            <Image 
-              src="/mercado-pago-logo.png" 
-              alt="Mercado Pago" 
-              width={40} 
-              height={16}
-              className="object-contain"
-              style={{ filter: 'brightness(0) saturate(100%) invert(65%) sepia(77%) saturate(3481%) hue-rotate(202deg) brightness(101%) contrast(101%)' }}
-            />
-          </span>
+          <>
+            {/* Versão notebook - ícone pequeno com fundo branco */}
+            <span className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-full bg-white">
+              <Image 
+                src="/mercado-pago-icon.png" 
+                alt="MP" 
+                width={24} 
+                height={24}
+                className="object-contain"
+              />
+            </span>
+            {/* Versão desktop - logo completa */}
+            <span className="hidden lg:inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              <Image 
+                src="/logo-mercadopago-blanco.png" 
+                alt="Mercado Pago" 
+                width={80} 
+                height={28}
+                className="object-contain brightness-0 invert"
+              />
+            </span>
+          </>
         )
       case 'appmax':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
-            ⚡ AppMax
-          </span>
+          <>
+            {/* Versão notebook - ícone pequeno */}
+            <span className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden">
+              <Image 
+                src="/appmax-icon.avif" 
+                alt="AX" 
+                width={32} 
+                height={32}
+                className="object-cover"
+              />
+            </span>
+            {/* Versão desktop - logo completa */}
+            <span className="hidden lg:inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+              <Image 
+                src="/appmax-logo.png" 
+                alt="Appmax" 
+                width={80} 
+                height={28}
+                className="object-contain brightness-0 invert"
+              />
+            </span>
+          </>
         )
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
+          <span className="inline-flex items-center gap-1 px-2 py-1 lg:px-3 lg:py-1.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">
             {gateway}
           </span>
         )
@@ -304,6 +339,7 @@ export default function SalesPage() {
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 bg-gray-900/50 border border-gray-700 text-white rounded-lg" />
           </div>
 
+          <SyncMercadoPagoButton />
           <SyncAppmaxButton />
 
           <button onClick={loadSales} disabled={loading} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 flex items-center gap-2">
@@ -346,18 +382,19 @@ export default function SalesPage() {
           </div>
         ) : (
           <>
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
               <thead className="bg-gray-900/50 border-b border-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Cliente</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Valor</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Cupom</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Método</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Gateway</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Data</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Origem</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Ações</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Status</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Cliente</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Valor</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap hidden lg:table-cell">Cupom</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Método</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Gateway</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Data</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase whitespace-nowrap hidden xl:table-cell">Origem</th>
+                  <th className="px-2 lg:px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -373,56 +410,51 @@ export default function SalesPage() {
                       className="hover:bg-gray-700/30 cursor-pointer group"
                       onClick={() => { setSelectedSale(sale); setShowDrawer(true) }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border ${statusConfig.className}`}>
-                          <StatusIcon className="w-3.5 h-3.5" />
-                          {statusConfig.label}
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 lg:gap-1.5 px-2 lg:px-3 py-1 rounded-full text-xs border ${statusConfig.className}`}>
+                          <StatusIcon className="w-3 h-3" />
+                          <span className="hidden sm:inline">{statusConfig.label}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-white">{sale.customer_name}</div>
-                        <div className="text-sm text-gray-400">{sale.customer_email}</div>
+                      <td className="px-2 lg:px-4 py-2 lg:py-4">
+                        <div className="font-medium text-white text-sm truncate max-w-[120px] lg:max-w-[200px]">{sale.customer_name}</div>
+                        <div className="text-xs text-gray-400 truncate max-w-[120px] lg:max-w-[200px]">{sale.customer_email}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-bold text-white">
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap">
+                        <div className="font-bold text-white text-sm">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total_amount)}
                         </div>
-                        {sale.coupon_code && sale.coupon_discount && sale.coupon_discount > 0 && (
-                          <div className="text-xs text-green-400 font-medium mt-0.5">
-                            🎟️ {sale.coupon_code} (-R$ {sale.coupon_discount.toFixed(2)})
-                          </div>
-                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap hidden lg:table-cell">
                         {sale.coupon_code ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
                             🎟️ {sale.coupon_code}
                           </span>
                         ) : (
                           <span className="text-xs text-gray-500">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-2xl">{getPaymentMethodIcon(sale.payment_method)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap text-lg lg:text-2xl">{getPaymentMethodIcon(sale.payment_method)}</td>
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap">
                         {getGatewayBadge(sale.payment_gateway)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap text-xs text-gray-400">
                         <div className="font-medium text-gray-300">{formatBRDateTime(sale.created_at)}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap hidden xl:table-cell">
                         {sale.utm_source ? (
                           <span className="text-xs bg-blue-900/30 text-blue-400 px-2 py-1 rounded border border-blue-700/50">{sale.utm_source}</span>
                         ) : (
                           <span className="text-xs text-gray-500">Direto</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100">
-                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(sale.id, 'ID') }} className="p-1.5 hover:bg-gray-600 rounded">
-                            <Copy className="w-4 h-4 text-gray-400" />
+                      <td className="px-2 lg:px-4 py-2 lg:py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(sale.id, 'ID') }} className="p-1 hover:bg-gray-600 rounded">
+                            <Copy className="w-3.5 h-3.5 text-gray-400" />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${sale.customer_email}` }} className="p-1.5 hover:bg-gray-600 rounded">
-                            <Mail className="w-4 h-4 text-gray-400" />
+                          <button onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${sale.customer_email}` }} className="p-1 hover:bg-gray-600 rounded">
+                            <Mail className="w-3.5 h-3.5 text-gray-400" />
                           </button>
                         </div>
                       </td>
@@ -431,6 +463,7 @@ export default function SalesPage() {
                 })}
               </tbody>
             </table>
+            </div>
 
             {totalPages > 1 && (
               <div className="px-6 py-4 bg-gray-900/50 border-t border-gray-700 flex items-center justify-between">

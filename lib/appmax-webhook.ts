@@ -13,6 +13,20 @@ interface AppmaxWebhookResult {
 }
 
 const EVENT_STATUS_MAP: Record<string, { status: string; failure_reason?: string }> = {
+  // ✅ STATUS DA API APPMAX (o que vem do backend da Appmax)
+  'integrado': { status: 'approved' },
+  'aprovado': { status: 'approved' },
+  'estornado': { status: 'refunded', failure_reason: 'Estornado' },
+  'cancelado': { status: 'cancelled', failure_reason: 'Cancelado' },
+  'pago': { status: 'paid' },
+  'recusado': { status: 'refused', failure_reason: 'Recusado' },
+  
+  // STATUS REAIS DA UI APPMAX (o que aparece na interface)
+  'pagamento aprovado': { status: 'approved' },
+  'pagamento pendente': { status: 'pending' },
+  'expirado': { status: 'expired', failure_reason: 'Expirado' },
+  'recusado pelo banco': { status: 'refused', failure_reason: 'Recusado pelo banco' },
+  
   // Eventos da API
   'order.approved': { status: 'approved' },
   'order.paid': { status: 'paid' },
@@ -20,9 +34,11 @@ const EVENT_STATUS_MAP: Record<string, { status: string; failure_reason?: string
   'order.rejected': { status: 'refused', failure_reason: 'Pedido recusado' },
   'order.cancelled': { status: 'cancelled', failure_reason: 'Pedido cancelado' },
   'order.refunded': { status: 'refunded', failure_reason: 'Estornado' },
+  'order.expired': { status: 'expired', failure_reason: 'Expirado' },
   'pix.generated': { status: 'pending' },
   'pix.paid': { status: 'paid' },
   'pix.expired': { status: 'expired', failure_reason: 'PIX expirado' },
+  
   // Eventos Appmax (normalizados)
   'pedido aprovado': { status: 'approved' },
   'pedido autorizado': { status: 'approved' },
@@ -30,22 +46,38 @@ const EVENT_STATUS_MAP: Record<string, { status: string; failure_reason?: string
   'pedido pendente de integracao': { status: 'pending' },
   'pedido integrado': { status: 'approved' },
   'pedido autorizado com atraso (60min)': { status: 'approved', failure_reason: 'Autorizado com atraso (60min)' },
-  'pagamento nao autorizado': { status: 'refused', failure_reason: 'Pagamento nao autorizado' },
-  'pagamento nao autorizado com atraso (60min)': { status: 'refused', failure_reason: 'Pagamento nao autorizado (60min)' },
+  'pagamento nao autorizado': { status: 'refused', failure_reason: 'Pagamento não autorizado' },
+  'pagamento nao autorizado com atraso (60min)': { status: 'refused', failure_reason: 'Pagamento não autorizado (60min)' },
   'boleto gerado': { status: 'pending' },
   'pedido com boleto vencido': { status: 'expired', failure_reason: 'Boleto vencido' },
+  'boleto vencido': { status: 'expired', failure_reason: 'Boleto vencido' },
   'pix gerado': { status: 'pending' },
   'pix pago': { status: 'paid' },
   'pix expirado': { status: 'expired', failure_reason: 'PIX expirado' },
   'pedido estornado': { status: 'refunded', failure_reason: 'Estornado' },
-  'pedido chargeback em tratamento': { status: 'chargeback', failure_reason: 'Chargeback em analise' },
+  'pedido chargeback em tratamento': { status: 'chargeback', failure_reason: 'Chargeback em análise' },
   'pedido chargeback ganho': { status: 'approved' },
+  'chargeback': { status: 'chargeback', failure_reason: 'Chargeback' },
   'upsell pago': { status: 'paid' },
-  // Status de Análise Antifraude (NOVO)
+  
+  // Status de Análise Antifraude
   'analise antifraude': { status: 'fraud_analysis' },
   'análise antifraude': { status: 'fraud_analysis' },
   'order.fraud_analysis': { status: 'fraud_analysis' },
-  'pendente': { status: 'fraud_analysis' } // Cartão de crédito pendente = análise antifraude
+  'pendente': { status: 'pending' }
+}
+
+// Mapeamento de status para order_status (usado pelo dashboard)
+const STATUS_TO_ORDER_STATUS: Record<string, string> = {
+  'paid': 'paid',
+  'approved': 'paid',  // Appmax usa 'approved' mas dashboard precisa de 'paid'
+  'pending': 'pending',
+  'cancelled': 'cancelled',
+  'refunded': 'refunded',
+  'refused': 'cancelled',
+  'expired': 'cancelled',
+  'fraud_analysis': 'pending',
+  'chargeback': 'refunded'
 }
 
 const SUCCESS_STATUSES = new Set(['approved', 'paid', 'completed'])
@@ -467,9 +499,14 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
   const orderId = data.order_id || data.appmax_order_id || data.order?.id || payload.order_id || payload.appmax_order_id
   const customer = data.customer || payload.customer || {}
   const customerEmail = data.customer_email || payload.customer_email || customer.email || payload.email || null
-  const customerName = data.customer_name || payload.customer_name || customer.name || (customerEmail ? customerEmail.split('@')[0] : null)
-  const customerPhone = data.customer_phone || payload.customer_phone || customer.phone || null
-  const customerCpf = data.customer_cpf || payload.customer_cpf || customer.cpf || null
+  const customerName = customer.fullname || 
+                      (customer.firstname && customer.lastname ? `${customer.firstname} ${customer.lastname}` : null) ||
+                      customer.name || 
+                      data.customer_name || 
+                      payload.customer_name || 
+                      (customerEmail ? customerEmail.split('@')[0] : 'Cliente Appmax')
+  const customerPhone = customer.telephone || customer.phone || data.customer_phone || payload.customer_phone || null
+  const customerCpf = customer.document_number || customer.cpf || data.customer_cpf || payload.customer_cpf || null
   const totalAmount = Number(
     data.total_amount ||
     data.amount ||
@@ -478,7 +515,7 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
     payload.amount ||
     0
   )
-  const paymentMethod = data.payment_method || payload.payment_method || null
+  const paymentMethod = data.payment_type || payload.payment_type || data.payment_method || payload.payment_method || null
 
   await logWebhook({
     endpoint,
@@ -577,6 +614,7 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
       coupon_code: couponCode,
       coupon_discount: couponDiscount,
       status,
+      order_status: STATUS_TO_ORDER_STATUS[status] || 'draft', // ✅ Mapear para order_status
       failure_reason: failureReason || null,
       payment_method: paymentMethod,
       updated_at: now

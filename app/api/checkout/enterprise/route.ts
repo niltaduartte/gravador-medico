@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const { customer, amount, payment_method, mpToken, appmax_data, idempotencyKey } = body
+    const { customer, amount, payment_method, mpToken, appmax_data, idempotencyKey, coupon_code, discount } = body
 
     // =====================================================
     // 2️⃣ CHECK DE IDEMPOTÊNCIA
@@ -105,6 +105,9 @@ export async function POST(request: NextRequest) {
         order_status: 'processing',
         status: 'pending', // Status legado (manter compatibilidade)
         payment_method: payment_method, // ✅ NOVO: salvar método de pagamento
+        coupon_code: coupon_code || null, // ✅ NOVO: salvar código do cupom
+        coupon_discount: discount || 0,   // ✅ NOVO: salvar valor do desconto
+        discount: discount || 0,          // ✅ NOVO: compatibilidade
         created_at: new Date().toISOString()
       })
       .select()
@@ -147,13 +150,25 @@ export async function POST(request: NextRequest) {
               installments: 1,
               payer: {
                 email: customer.email,
+                first_name: customer.name?.split(' ')[0] || '',
+                last_name: customer.name?.split(' ').slice(1).join(' ') || '',
                 identification: {
                   type: 'CPF',
                   number: customer.cpf.replace(/\D/g, '')
                 }
               },
+              external_reference: order.id, // ✅ ADICIONADO: Referência para cruzar dados
               notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
-              statement_descriptor: 'GRAVADOR MEDICO'
+              statement_descriptor: 'GRAVADOR MEDICO',
+              additional_info: {
+                payer: {
+                  first_name: customer.name?.split(' ')[0] || '',
+                  last_name: customer.name?.split(' ').slice(1).join(' ') || '',
+                  phone: {
+                    number: customer.phone?.replace(/\D/g, '') || ''
+                  }
+                }
+              }
             }),
             signal: controller.signal
           })

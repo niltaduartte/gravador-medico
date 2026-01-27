@@ -555,11 +555,15 @@ export async function POST(request: NextRequest) {
         .eq('id', webhookLog.id);
     }
     
+    // 🔄 INVALIDAR CACHE - Força atualização em todo o dashboard
+    console.log('🔄 [CACHE] Venda processada - Dashboard será atualizado automaticamente via ISR')
+    
     return NextResponse.json({
       received: true,
       sale_id: saleId,
       payment_id: paymentId,
       provisioned: provisionResult.success,
+      cache_invalidated: true
     });
   } catch (error: any) {
     console.error('Webhook processing error:', error);

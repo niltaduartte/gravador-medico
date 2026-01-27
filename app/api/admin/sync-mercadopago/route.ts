@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { requireAdmin } from '@/lib/auth-server'
+import { revalidateAdminPages } from '@/lib/actions/revalidate'
 
 /**
  * API de Sincronização Manual com Mercado Pago
@@ -9,6 +10,8 @@ import { requireAdmin } from '@/lib/auth-server'
  * Uso:
  * POST /api/admin/sync-mercadopago
  * Body: { days?: number }
+ * 
+ * ✅ CACHE REVALIDATION: Após sincronizar, invalida o cache automaticamente
  */
 
 const MP_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || ''
@@ -34,9 +37,14 @@ function normalizeStatus(status?: string): string {
 function normalizePaymentMethod(method?: string): string {
   if (!method) return 'unknown'
   const normalized = method.toLowerCase()
-  if (normalized.includes('pix')) return 'pix'
-  if (normalized.includes('credit') || normalized.includes('debit')) return 'credit_card'
-  if (normalized.includes('boleto') || normalized.includes('ticket')) return 'boleto'
+  
+  // Mercado Pago payment_method_id / payment_type_id values
+  if (normalized === 'pix' || normalized.includes('pix')) return 'pix'
+  if (normalized === 'credit_card' || normalized.includes('credit')) return 'credit_card'
+  if (normalized === 'debit_card' || normalized.includes('debit')) return 'debit_card'
+  if (normalized === 'bolbradesco' || normalized === 'ticket' || normalized.includes('boleto')) return 'boleto'
+  if (normalized === 'account_money') return 'account_money'
+  
   return normalized
 }
 
@@ -115,50 +123,85 @@ async function syncPayment(payment: MPPayment): Promise<{
   try {
     const paymentId = payment.id.toString()
     
-    // Verificar se já existe
+    // Verificar se já existe COM DADOS CORRETOS
     const { data: existingSale } = await supabaseAdmin
       .from('sales')
-      .select('id, order_status')
+      .select('id, order_status, customer_name, customer_email')
       .eq('mercadopago_payment_id', paymentId)
       .maybeSingle()
 
-    // Se já existe e está pago, pular
-    if (existingSale && ['paid', 'approved'].includes(existingSale.order_status)) {
+    // Se já existe COM dados válidos (não mascarados), pular
+    if (existingSale && 
+        ['paid', 'approved'].includes(existingSale.order_status) &&
+        existingSale.customer_name &&
+        !existingSale.customer_name.includes('Cliente MP') &&
+        !existingSale.customer_name.includes('XXXX')) {
       return { success: true, paymentId, action: 'skipped' }
     }
 
-    // Extrair dados do pagamento
-    const customerEmail = payment.payer?.email
-    const customerName = payment.payer?.first_name 
-      ? `${payment.payer.first_name} ${payment.payer.last_name || ''}`
-      : customerEmail?.split('@')[0] || 'Cliente MP'
-    const customerPhone = payment.payer?.phone?.number
-    const customerCpf = payment.payer?.identification?.number
-
-    if (!customerEmail) {
-      return { success: false, error: 'Email não encontrado', paymentId, action: 'skipped' }
+    // 1. Tentar buscar dados do external_reference (nosso order_id)
+    let customerEmail = payment.payer?.email
+    let customerName = 'Cliente MP'
+    let customerPhone = payment.payer?.phone?.number
+    let customerCpf = payment.payer?.identification?.number
+    
+    // Se tem external_reference, buscar dados da venda original
+    if (payment.external_reference) {
+      const { data: originalSale } = await supabaseAdmin
+        .from('sales')
+        .select('customer_name, customer_email, customer_phone')
+        .eq('id', payment.external_reference)
+        .maybeSingle()
+      
+      if (originalSale && originalSale.customer_name) {
+        customerName = originalSale.customer_name
+        customerEmail = originalSale.customer_email || customerEmail
+        customerPhone = originalSale.customer_phone || customerPhone
+      }
+    }
+    
+    // 2. Se ainda não tem nome, usar dados do payer
+    if (customerName === 'Cliente MP') {
+      if (payment.payer?.first_name && payment.payer.first_name.trim()) {
+        customerName = `${payment.payer.first_name} ${payment.payer.last_name || ''}`.trim()
+      } else if (customerEmail && !customerEmail.includes('XXXX') && customerEmail !== 'unknown@mercadopago.com') {
+        customerName = customerEmail.split('@')[0]
+      }
     }
 
-    // Criar/atualizar customer
-    let customerId: string | null = null
-    try {
-      const { data: customerRow } = await supabaseAdmin
-        .from('customers')
-        .upsert({
-          email: customerEmail,
-          name: customerName,
-          phone: customerPhone,
-          cpf: customerCpf
-        }, {
-          onConflict: 'email',
-          ignoreDuplicates: false
-        })
-        .select('id')
-        .single()
+    // 3. Validar email (se mascarado, manter null para não sobrescrever dados bons)
+    if (!customerEmail || customerEmail.includes('XXXX') || customerEmail === 'unknown@mercadopago.com') {
+      // Se já existe registro com email bom, manter
+      if (existingSale?.customer_email && !existingSale.customer_email.includes('XXXX')) {
+        customerEmail = existingSale.customer_email
+        customerName = existingSale.customer_name || customerName
+      } else {
+        customerEmail = 'unknown@mercadopago.com'
+      }
+    }
 
-      customerId = customerRow?.id || null
-    } catch (error) {
-      console.warn('⚠️ Erro ao upsert customer:', error)
+    // Criar/atualizar customer apenas se tiver email válido
+    let customerId: string | null = null
+    if (customerEmail && customerEmail !== 'unknown@mercadopago.com') {
+      try {
+        const { data: customerRow } = await supabaseAdmin
+          .from('customers')
+          .upsert({
+            email: customerEmail,
+            name: customerName,
+            phone: customerPhone,
+            cpf: customerCpf
+          }, {
+            onConflict: 'email',
+            ignoreDuplicates: false
+          })
+          .select('id')
+          .single()
+
+        customerId = customerRow?.id || null
+      } catch (error) {
+        console.warn('⚠️ Erro ao upsert customer:', error)
+      }
     }
 
     // Preparar payload da venda
@@ -252,9 +295,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ [MP SYNC] Concluído:`, results)
 
+    // 🔄 INVALIDAR CACHE DO DASHBOARD
+    console.log('🔄 [MP SYNC] Invalidando cache do dashboard...')
+    await revalidateAdminPages()
+    console.log('✅ [MP SYNC] Cache invalidado - Dashboard atualizado!')
+
     return NextResponse.json({
       success: true,
-      message: `Sincronização concluída`,
+      message: `Sincronização concluída. Dashboard atualizado automaticamente.`,
       results
     })
   } catch (error: any) {

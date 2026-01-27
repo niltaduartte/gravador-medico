@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { RefreshCw, CreditCard } from 'lucide-react'
 import Image from 'next/image'
+import { revalidateAdminPages } from '@/lib/actions/revalidate'
 
 interface SyncResult {
   total: number
@@ -37,6 +38,12 @@ export function SyncMercadoPagoButton() {
       }
 
       setResult(data.results)
+      
+      // 🔄 Revalidar todas as páginas do admin para atualizar métricas
+      console.log('🔄 [SYNC MP] Revalidando cache do admin...')
+      await revalidateAdminPages()
+      console.log('✅ [SYNC MP] Cache revalidado')
+      
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -58,29 +65,29 @@ export function SyncMercadoPagoButton() {
           <CreditCard className="w-4 h-4 text-blue-400" />
         )}
         <span className="text-sm font-medium">
-          {loading ? 'Sincronizando MP...' : 'Sync MP'}
+          {loading ? 'Sincronizando...' : 'Importar Mercado Pago'}
         </span>
       </button>
 
       {/* Toast de resultado */}
       {result && (
-        <div className="absolute top-full right-0 mt-2 z-50 bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-xl min-w-[250px]">
-          <div className="text-sm text-white font-semibold mb-2 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-blue-400" />
+        <div className="fixed bottom-4 right-4 z-[9999] bg-gray-900 border-2 border-blue-500 rounded-xl p-5 shadow-2xl min-w-[280px] max-w-[400px] backdrop-blur-sm">
+          <div className="text-base text-white font-bold mb-3 flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-blue-400" />
             Sincronização MP Concluída
           </div>
-          <div className="space-y-1 text-xs text-gray-400">
-            <p>Total encontrado: <span className="text-white font-medium">{result.total}</span></p>
-            <p className="text-green-400">✅ Criados: {result.created}</p>
-            <p className="text-yellow-400">🔄 Atualizados: {result.updated}</p>
-            <p className="text-gray-400">⏭️ Ignorados: {result.skipped}</p>
+          <div className="space-y-2 text-sm text-gray-200">
+            <p className="font-semibold">Total encontrado: <span className="text-blue-400">{result.total}</span></p>
+            <p className="text-green-400 font-medium">✅ Criados: {result.created}</p>
+            <p className="text-yellow-400 font-medium">🔄 Atualizados: {result.updated}</p>
+            <p className="text-gray-300 font-medium">⏭️ Ignorados: {result.skipped}</p>
             {result.errors > 0 && (
-              <p className="text-red-400">❌ Erros: {result.errors}</p>
+              <p className="text-red-400 font-medium">❌ Erros: {result.errors}</p>
             )}
           </div>
           <button
             onClick={() => setResult(null)}
-            className="mt-2 text-xs text-gray-500 hover:text-white"
+            className="mt-3 w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
           >
             Fechar
           </button>
@@ -89,12 +96,15 @@ export function SyncMercadoPagoButton() {
 
       {/* Toast de erro */}
       {error && (
-        <div className="absolute top-full right-0 mt-2 z-50 bg-red-900/80 border border-red-700 rounded-xl p-4 shadow-xl min-w-[250px]">
-          <div className="text-sm text-red-200 font-semibold mb-1">❌ Erro</div>
-          <p className="text-xs text-red-300">{error}</p>
+        <div className="fixed bottom-4 right-4 z-[9999] bg-red-950 border-2 border-red-500 rounded-xl p-5 shadow-2xl min-w-[280px] max-w-[400px]">
+          <div className="text-base text-red-100 font-bold mb-2 flex items-center gap-2">
+            <span className="text-2xl">❌</span>
+            Erro na Sincronização
+          </div>
+          <p className="text-sm text-red-200 mb-3">{error}</p>
           <button
-            onClick={() => setError(null)}
-            className="mt-2 text-xs text-red-400 hover:text-white"
+            onClick={() => setError('')}
+            className="w-full bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
           >
             Fechar
           </button>

@@ -204,20 +204,25 @@ export default function PaymentsAdminPage() {
       return (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex items-center gap-1">
           <Image 
-            src="/mercado-pago-logo.png" 
+            src="/logo-mercadopago-blanco.png" 
             alt="Mercado Pago" 
-            width={48} 
-            height={20}
+            width={60} 
+            height={24}
             className="object-contain"
-            style={{ filter: 'brightness(0) saturate(100%) invert(27%) sepia(93%) saturate(2764%) hue-rotate(203deg) brightness(94%) contrast(98%)' }}
           />
         </span>
       )
     } else if (gateway === 'appmax' || fallback) {
       return (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 flex items-center gap-1">
-          <Zap className="w-3 h-3" />
-          AppMax {fallback && '(Resgate)'}
+          <Image 
+            src="/appmax-logo.png" 
+            alt="Appmax" 
+            width={48} 
+            height={20}
+            className="object-contain"
+          />
+          {fallback && '(Resgate)'}
         </span>
       )
     }
@@ -340,12 +345,11 @@ export default function PaymentsAdminPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <Image 
-                    src="/mercado-pago-logo.png" 
+                    src="/logo-mercadopago-blanco.png" 
                     alt="Mercado Pago" 
-                    width={100} 
-                    height={40}
-                    className="object-contain"
-                    style={{ filter: 'brightness(0) invert(1)' }}
+                    width={120} 
+                    height={48}
+                    className="object-contain brightness-0 invert"
                   />
                 </div>
                 <div className="text-3xl font-black">{stats.mp_sales}</div>
@@ -361,12 +365,17 @@ export default function PaymentsAdminPage() {
                 className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-purple-100 text-sm font-medium">AppMax (Resgate)</span>
-                  <Zap className="w-5 h-5" />
+                  <Image 
+                    src="/appmax-logo.png" 
+                    alt="Appmax" 
+                    width={120} 
+                    height={48}
+                    className="object-contain brightness-0 invert"
+                  />
                 </div>
-                <div className="text-3xl font-black">{stats.fallback_sales}</div>
+                <div className="text-3xl font-black">{stats.appmax_sales}</div>
                 <div className="text-sm text-purple-100 mt-1">
-                  {formatCurrency(stats.rescued_revenue)}
+                  {formatCurrency(stats.appmax_revenue)}
                 </div>
               </motion.div>
             </div>

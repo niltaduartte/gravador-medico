@@ -310,6 +310,11 @@ export async function fetchDashboardMetrics(
       unique_visitors: toNumber(currentRow?.unique_visitors),
       sales: toNumber(currentRow?.total_sales),
       revenue: toNumber(currentRow?.total_revenue),
+      gross_revenue: toNumber(currentRow?.gross_revenue),
+      total_discount: toNumber(currentRow?.total_discount),
+      failed_sales: toNumber(currentRow?.failed_sales),
+      paid_sales: toNumber(currentRow?.paid_sales),
+      pending_sales: toNumber(currentRow?.pending_sales),
       average_order_value: toNumber(currentRow?.average_order_value),
       conversion_rate: toNumber(currentRow?.conversion_rate)
     }
@@ -494,6 +499,45 @@ export async function fetchOperationalHealth(
     failedPayments.reasons = Array.from(reasonMap.entries())
       .map(([reason, count]) => ({ reason, count }))
       .sort((a, b) => b.count - a.count)
+
+    // ✅ TAMBÉM BUSCAR DE SALES (dados sincronizados da Appmax/MP)
+    try {
+      const { data: failedSalesRows } = await supabase
+        .from('sales')
+        .select('order_status, total_amount, failure_reason, metadata, created_at, payment_gateway')
+        .gte('created_at', since)
+        .lte('created_at', endIso)
+        .in('order_status', failedStatuses)
+      
+      if (failedSalesRows && failedSalesRows.length > 0) {
+        for (const row of failedSalesRows) {
+          const amount = Number(row.total_amount || 0)
+          failedPayments.count += 1
+          failedPayments.totalValue += Number.isFinite(amount) ? amount : 0
+
+          const reason = normalizeReason(
+            row.failure_reason ||
+              row?.metadata?.failure_reason ||
+              row.order_status ||
+              'recusado'
+          )
+          reasonMap.set(reason, (reasonMap.get(reason) || 0) + 1)
+
+          if (row.order_status === 'chargeback') {
+            chargebacks.count += 1
+            chargebacks.totalValue += Number.isFinite(amount) ? amount : 0
+          }
+        }
+        
+        // Recalcular reasons após adicionar sales
+        failedPayments.reasons = Array.from(reasonMap.entries())
+          .map(([reason, count]) => ({ reason, count }))
+          .sort((a, b) => b.count - a.count)
+      }
+    } catch (e) {
+      // Tabela sales pode ter estrutura diferente, ignorar erro silenciosamente
+      console.warn('⚠️ Erro ao buscar vendas recusadas:', e)
+    }
 
     let recoverableCarts = { count: 0, totalValue: 0, last24h: 0 }
     try {
@@ -829,7 +873,7 @@ export async function fetchFunnelData(
 // ========================================
 /**
  * Busca estatísticas de performance dos gateways de pagamento
- * Inclui dados de Mercado Pago, AppMax e sistema de cascata
+ * Consulta direta à tabela sales para dados precisos
  */
 export async function fetchGatewayStats(
   supabase: SupabaseClient,
@@ -838,17 +882,73 @@ export async function fetchGatewayStats(
   try {
     const { startIso, endIso } = resolveIsoRange(options)
     
-    const { data, error } = await supabase.rpc('get_gateway_stats', {
-      start_date: startIso,
-      end_date: endIso
-    })
-
+    // Buscar todos os dados de vendas do período
+    const { data: sales, error } = await supabase
+      .from('sales')
+      .select('payment_gateway, order_status, total_amount')
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+    
     if (error) {
       console.error('❌ Erro ao buscar estatísticas de gateway:', error)
       return { data: [], error }
     }
-
-    return { data: data || [], error: null }
+    
+    // Agrupar por gateway
+    const gateways = new Map<string, {
+      gateway: string
+      total_sales: number
+      successful_sales: number
+      total_revenue: number
+      fallback_count: number
+      fallback_revenue: number
+    }>()
+    
+    // Status considerados como pagos/aprovados
+    const PAID_STATUS = ['paid', 'approved', 'delivered', 'shipped', 'processing', 'integrado', 'enviado', 'entregue']
+    
+    sales?.forEach((sale: any) => {
+      const gateway = (sale.payment_gateway || 'unknown').toLowerCase()
+      
+      if (!gateways.has(gateway)) {
+        gateways.set(gateway, {
+          gateway,
+          total_sales: 0,
+          successful_sales: 0,
+          total_revenue: 0,
+          fallback_count: 0,
+          fallback_revenue: 0
+        })
+      }
+      
+      const stats = gateways.get(gateway)!
+      stats.total_sales++
+      
+      const status = (sale.order_status || '').toLowerCase()
+      if (PAID_STATUS.includes(status)) {
+        stats.successful_sales++
+        stats.total_revenue += Number(sale.total_amount || 0)
+      }
+    })
+    
+    // Calcular métricas finais
+    const result = Array.from(gateways.values()).map(stats => ({
+      gateway: stats.gateway,
+      total_sales: stats.total_sales,
+      successful_sales: stats.successful_sales,
+      total_revenue: stats.total_revenue,
+      avg_ticket: stats.successful_sales > 0
+        ? stats.total_revenue / stats.successful_sales
+        : 0,
+      approval_rate: stats.total_sales > 0
+        ? (stats.successful_sales / stats.total_sales) * 100
+        : 0,
+      fallback_count: stats.fallback_count,
+      fallback_revenue: stats.fallback_revenue
+    }))
+    
+    console.log('📊 Gateway Stats:', result)
+    return { data: result, error: null }
   } catch (error) {
     console.error('❌ Exceção ao buscar estatísticas de gateway:', error)
     return { data: [], error }
