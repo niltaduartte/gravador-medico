@@ -10,6 +10,10 @@
 -- =====================================================
 -- Incluir vendas em processamento além de pagas
 
+-- ✅ DROP da função antiga primeiro
+DROP FUNCTION IF EXISTS public.get_analytics_period(timestamp with time zone, timestamp with time zone);
+
+-- Criar nova versão com campos adicionais
 CREATE OR REPLACE FUNCTION public.get_analytics_period(
     start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW() - INTERVAL '30 days',
     end_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
