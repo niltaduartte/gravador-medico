@@ -113,6 +113,7 @@ export default function AdsPage() {
   const [metrics, setMetrics] = useState<AdsMetrics | null>(null);
   const [allCampaigns, setAllCampaigns] = useState<CampaignInsight[]>([]);
   const [statusMap, setStatusMap] = useState<Map<string, string>>(new Map());
+  const [createdTimeMap, setCreatedTimeMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -134,11 +135,18 @@ export default function AdsPage() {
       const calculatedMetrics = calculateAdsMetrics(Array.isArray(campaigns) ? campaigns : []);
       setMetrics(calculatedMetrics);
       
-      const map = new Map<string, string>();
+      const statusMapTemp = new Map<string, string>();
+      const createdTimeMapTemp = new Map<string, string>();
       if (Array.isArray(status)) {
-        status.forEach((s: any) => map.set(s.id, s.effective_status || s.status));
+        status.forEach((s: any) => {
+          statusMapTemp.set(s.id, s.effective_status || s.status);
+          if (s.created_time) {
+            createdTimeMapTemp.set(s.id, s.created_time);
+          }
+        });
       }
-      setStatusMap(map);
+      setStatusMap(statusMapTemp);
+      setCreatedTimeMap(createdTimeMapTemp);
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Erro ao carregar dados de anúncios:', error);
@@ -205,10 +213,17 @@ export default function AdsPage() {
           return Number(b.spend || 0) - Number(a.spend || 0);
         case 'spend_asc':
           return Number(a.spend || 0) - Number(b.spend || 0);
-        case 'date_desc':
-          return (b.date_start || '').localeCompare(a.date_start || '');
-        case 'date_asc':
-          return (a.date_start || '').localeCompare(b.date_start || '');
+        case 'date_desc': {
+          // Usar created_time se disponível, senão usar date_start
+          const dateA = createdTimeMap.get(a.campaign_id || '') || a.date_start || '';
+          const dateB = createdTimeMap.get(b.campaign_id || '') || b.date_start || '';
+          return dateB.localeCompare(dateA);
+        }
+        case 'date_asc': {
+          const dateA = createdTimeMap.get(a.campaign_id || '') || a.date_start || '';
+          const dateB = createdTimeMap.get(b.campaign_id || '') || b.date_start || '';
+          return dateA.localeCompare(dateB);
+        }
         case 'clicks_desc':
           return Number(b.clicks || 0) - Number(a.clicks || 0);
         case 'ctr_desc':
@@ -219,7 +234,7 @@ export default function AdsPage() {
     });
     
     return result;
-  }, [metrics?.campaigns, statusFilter, sortBy, statusMap]);
+  }, [metrics?.campaigns, statusFilter, sortBy, statusMap, createdTimeMap]);
 
   const kpiCards = [
     { 
@@ -538,19 +553,21 @@ export default function AdsPage() {
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">
                 {metrics?.campaigns.length === 0 
-                  ? 'Nenhuma campanha encontrada' 
+                  ? (selectedPeriod === 'today' ? 'Dados de hoje ainda não disponíveis' : 'Nenhuma campanha encontrada')
                   : `Nenhuma campanha ${statusFilterOptions.find(o => o.value === statusFilter)?.label.toLowerCase() || ''} encontrada`}
               </h3>
               <p className="text-gray-400 max-w-md mb-6">
                 {metrics?.campaigns.length === 0 
-                  ? 'Não há dados de campanhas para o período selecionado. Verifique se você tem campanhas ativas no Gerenciador de Anúncios do Facebook.'
+                  ? (selectedPeriod === 'today' 
+                    ? 'O Facebook pode levar até 24 horas para processar os dados do dia atual. Tente selecionar "Ontem" ou "Últimos 7 dias" para ver dados mais recentes.'
+                    : 'Não há dados de campanhas para o período selecionado. Verifique se você tem campanhas ativas no Gerenciador de Anúncios do Facebook.')
                   : 'Tente alterar os filtros para ver mais campanhas.'}
               </p>
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
                 <Zap className="h-4 w-4 text-blue-400" />
                 <span className="text-sm text-blue-300">
                   {metrics?.campaigns.length === 0 
-                    ? 'Crie sua primeira campanha no Meta Ads Manager'
+                    ? (selectedPeriod === 'today' ? 'Selecione "Ontem" para ver os dados mais recentes' : 'Crie sua primeira campanha no Meta Ads Manager')
                     : `${metrics?.campaigns.length} campanhas disponíveis no total`}
                 </span>
               </div>

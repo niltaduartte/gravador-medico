@@ -13,7 +13,7 @@ export async function GET() {
   try {
     const url = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/campaigns?` + new URLSearchParams({
       access_token: ACCESS_TOKEN,
-      fields: 'id,name,status,effective_status',
+      fields: 'id,name,status,effective_status,created_time',
       limit: '50'
     });
 

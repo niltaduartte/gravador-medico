@@ -185,14 +185,14 @@ export function calculateAdsMetrics(campaigns: CampaignInsight[]): AdsMetrics {
 }
 
 /**
- * Busca status das campanhas (ativa/pausada)
+ * Busca status das campanhas (ativa/pausada) com data de criação
  */
 export async function getCampaignsStatus(): Promise<Map<string, string>> {
   if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) return new Map();
 
   const url = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/campaigns?` + new URLSearchParams({
     access_token: ACCESS_TOKEN,
-    fields: 'id,name,status,effective_status',
+    fields: 'id,name,status,effective_status,created_time',
     limit: '50'
   });
 
