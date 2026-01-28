@@ -55,12 +55,6 @@ const automationItems = [
     badge: null
   },
   { 
-    icon: Mail, 
-    label: 'Gestão de E-mails', 
-    href: '/admin/emails',
-    badge: null
-  },
-  { 
     icon: MessageSquare, 
     label: 'WhatsApp', 
     href: '/admin/whatsapp',
@@ -173,7 +167,7 @@ const producaoItems = [
   },
 ]
 
-// Menu de Gestão (CRM, Clientes)
+// Menu de Gestão (CRM, Clientes, E-mails)
 const gestaoItems = [
   { 
     icon: Users, 
@@ -185,6 +179,12 @@ const gestaoItems = [
     icon: Users, 
     label: 'Clientes', 
     href: '/admin/customers',
+    badge: null
+  },
+  { 
+    icon: Mail, 
+    label: 'Gestão de E-mails', 
+    href: '/admin/emails',
     badge: null
   },
 ]
