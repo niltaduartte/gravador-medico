@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { createAppmaxOrder } from '@/lib/appmax'
 
 /**
  * 🏢 CHECKOUT ENTERPRISE LEVEL
@@ -381,40 +382,34 @@ export async function POST(request: NextRequest) {
         
         const appmaxStartTime = Date.now()
 
-        const appmaxResponse = await fetch('https://admin.appmax.com.br/api/v3/order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'token': process.env.APPMAX_TOKEN!
+        // Usar a função correta do lib/appmax.ts
+        const appmaxResult = await createAppmaxOrder({
+          customer: {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            cpf: customer.cpf,
           },
-          body: JSON.stringify({
-            customer: {
-              name: customer.name,
-              email: customer.email,
-              phone: customer.phone,
-              cpf: customer.cpf,
-              document_type: customer.documentType || 'CPF' // CPF ou CNPJ
-            },
-            product_id: process.env.APPMAX_PRODUCT_ID,
-            quantity: 1,
-            payment_method: appmax_data.payment_method,
-            card_data: appmax_data.card_data,
-            order_bumps: appmax_data.order_bumps || []
-          })
+          product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
+          quantity: 1,
+          payment_method: appmax_data.payment_method === 'credit_card' ? 'credit_card' : 'pix',
+          card_data: appmax_data.card_data,
+          order_bumps: appmax_data.order_bumps || [],
+          discount: body.discount || 0,
         })
 
-        const appmaxResult = await appmaxResponse.json()
         const appmaxResponseTime = Date.now() - appmaxStartTime
 
-        console.log(`📊 AppMax: ${appmaxResult.success} (${appmaxResponseTime}ms)`)
+        console.log(`📊 AppMax response: success=${appmaxResult.success} (${appmaxResponseTime}ms)`)
+        console.log('📊 AppMax result:', JSON.stringify(appmaxResult, null, 2))
 
         // Registrar tentativa
         await supabaseAdmin.from('payment_attempts').insert({
           sale_id: order.id,
           provider: 'appmax',
-          gateway_transaction_id: appmaxResult.order?.id,
+          gateway_transaction_id: appmaxResult.order_id,
           status: appmaxResult.success ? 'success' : 'rejected',
-          error_message: appmaxResult.error,
+          error_message: appmaxResult.message,
           raw_response: appmaxResult,
           response_time_ms: appmaxResponseTime
         })
@@ -428,9 +423,9 @@ export async function POST(request: NextRequest) {
             .from('sales')
             .update({
               order_status: 'paid',
-              status: appmaxResult.payment?.status === 'paid' ? 'paid' : 'pending',
+              status: appmaxResult.status === 'approved' ? 'paid' : 'pending',
               payment_gateway: 'appmax',
-              appmax_order_id: appmaxResult.order?.id,
+              appmax_order_id: appmaxResult.order_id,
               current_gateway: 'appmax',
               fallback_used: true, // ✅ MARCA COMO RESGATADO
               payment_details: appmaxResult
@@ -449,16 +444,17 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
             success: true,
             order_id: order.id,
-            payment_id: appmaxResult.order?.id,
+            payment_id: appmaxResult.order_id,
             gateway_used: 'appmax',
             fallback_used: true,
-            status: appmaxResult.payment?.status,
-            qr_code: appmaxResult.payment?.qr_code,
-            qr_code_base64: appmaxResult.payment?.qr_code_base64
+            status: appmaxResult.status,
+            pix_qr_code: appmaxResult.pix_qr_code,
+            pix_emv: appmaxResult.pix_emv,
+            redirect_url: appmaxResult.redirect_url
           })
         }
 
-        console.log('❌ AppMax também recusou')
+        console.log('❌ AppMax também recusou:', appmaxResult.message)
 
       } catch (appmaxError: any) {
         console.error('❌ Erro crítico no AppMax:', appmaxError.message)

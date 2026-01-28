@@ -726,6 +726,21 @@ export default function CheckoutPage() {
         
         payload.mpToken = token.id
         payload.installments = cardData.installments
+        
+        // 🔄 CASCATA: Enviar dados do cartão para AppMax como fallback
+        // AppMax não usa tokens do Mercado Pago, precisa dos dados brutos
+        payload.appmax_data = {
+          payment_method: 'credit_card',
+          card_data: {
+            number: cardData.number.replace(/\s/g, ''),
+            holder_name: cardData.holderName || formData.name,
+            exp_month: cardData.expMonth,
+            exp_year: cardData.expYear.length === 2 ? `20${cardData.expYear}` : cardData.expYear,
+            cvv: cardData.cvv,
+            installments: cardData.installments || 1,
+          },
+          order_bumps: selectedBumpProducts,
+        }
       }
       
       const response = await fetch('/api/checkout/enterprise', {
